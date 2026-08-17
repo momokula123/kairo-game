@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>冒险村物语</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #1f2c1f;
+    overflow: hidden;
+    font-family: 'Courier New', Consolas, monospace;
+    user-select: none;
+  }
+  body { display: flex; align-items: center; justify-content: center; }
+  #stage { position: relative; line-height: 0; }
+  #game {
+    display: block;
+    image-rendering: pixelated;
+    background: #000;
+  }
+  #boot {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #1f2c1f; color: #9aa7c0;
+    font-size: 16px; letter-spacing: 2px;
+    z-index: 10;
+  }
+  .pixel-loader {
+    border: 3px solid #2a3346; border-top: 3px solid #ffd23f;
+    width: 42px; height: 42px; border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin-right: 14px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ═══════════ HTML 模态 UI（覆盖在画布上，逻辑坐标 1920x1080）═══════════ */
+  #uiRoot {
+    position: absolute; inset: 0;
+    font-size: 16px; line-height: 1.2;
+    pointer-events: none;
+    color: #e8f0ff;
+  }
+  #uiRoot button { pointer-events: auto; }
+  .ui-btn {
+    background: #24466e; color: #fff; border: 2px solid #4a90d9;
+    border-radius: 8px; padding: 8px 16px;
+    font: bold 15px 'Courier New', Consolas, monospace;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .ui-btn:hover { background: #3a5a8a; }
+  .ui-btn.active { background: #3a5a8a; border-color: #7ce38b; }
+  .ui-btn.danger { background: #5a2c2c; border-color: #ff5c5c; }
+  .ui-btn.danger:hover { background: #7a3c3c; }
+
+  /* —— 顶部 HUD —— */
+  #hud {
+    position: absolute; top: 14px; left: 14px; right: 14px;
+    height: 74px;
+    background: rgba(20,26,40,0.92);
+    border: 2px solid #3a4a68; border-radius: 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 22px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  }
+  #hud .group { display: flex; align-items: center; gap: 26px; }
+  #hud .res { font-size: 22px; }
+  #hud .res.gold { color: #ffd23f; font-weight: bold; }
+  #hud .res.rep { color: #ff8ad4; font-size: 19px; }
+  #hud .res.misc { color: #9aa7c0; font-size: 18px; }
+  #hud .res.adv { color: #7ce38b; font-size: 18px; }
+  #hud .btns { display: flex; gap: 10px; }
+  #hud .spd { display: flex; gap: 4px; margin-right: 6px; }
+  #hud .spd button {
+    width: 46px; height: 40px; border-radius: 6px;
+    background: #2a3550; color: #fff; border: 1px solid #4a5a7a;
+    font-size: 16px; cursor: pointer;
+  }
+  #hud .spd button.on { background: #3a5a8a; border-color: #7ce38b; }
+
+  /* —— 放置模式提示条 —— */
+  #placeBar {
+    position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%);
+    background: rgba(10,14,24,0.92); border: 2px solid #7ce38b; border-radius: 10px;
+    padding: 10px 22px; font-size: 17px; color: #fff;
+    display: none; align-items: center; gap: 16px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    pointer-events: auto;
+  }
+  #placeBar .tip { color: #7ce38b; }
+
+  /* —— 模态 —— */
+  #modalMask {
+    position: absolute; inset: 0;
+    background: rgba(8,10,18,0.55);
+    display: none; align-items: center; justify-content: center;
+    pointer-events: auto;
+    z-index: 20;
+  }
+  #modalMask.open { display: flex; }
+  .modal {
+    width: 920px; max-height: 820px;
+    background: rgba(22,28,44,0.98);
+    border: 2px solid #4a5a7a; border-radius: 14px;
+    display: flex; flex-direction: column;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+    overflow: hidden;
+  }
+  .modal-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px;
+    background: #1c2438; border-bottom: 2px solid #3a4a68;
+  }
+  .modal-head h2 { font-size: 22px; color: #ffd23f; }
+  .modal-close {
+    background: #3a2c2c; color: #ff8a8a; border: 1px solid #ff5c5c;
+    border-radius: 8px; width: 38px; height: 34px;
+    font-size: 16px; cursor: pointer;
+  }
+  .modal-tabs { display: flex; gap: 6px; padding: 12px 22px 0; }
+  .modal-tabs button {
+    padding: 8px 20px; border-radius: 8px 8px 0 0;
+    background: #2a3550; color: #9aa7c0; border: 1px solid #3a4a68;
+    font: bold 15px Consolas, monospace; cursor: pointer;
+  }
+  .modal-tabs button.on { background: #24466e; color: #fff; border-color: #4a90d9; }
+  .modal-body { padding: 18px 22px 24px; overflow-y: auto; }
+
+  /* —— 建造卡片 —— */
+  .card-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .bcard {
+    background: #1c2438; border: 2px solid #3a4a68; border-radius: 12px;
+    padding: 12px; text-align: center; cursor: pointer;
+    transition: transform 0.06s;
+  }
+  .bcard:hover { border-color: #4a9eff; transform: translateY(-2px); background: #243050; }
+  .bcard.poor { opacity: 0.45; }
+  .bcard .thumb {
+    width: 86px; height: 86px; margin: 4px auto 8px;
+    display: flex; align-items: flex-end; justify-content: center;
+    overflow: hidden;
+  }
+  .bcard .thumb img { image-rendering: pixelated; max-width: 86px; max-height: 86px; }
+  .bcard .emoji { font-size: 58px; line-height: 86px; }
+  .bcard .nm { font-size: 16px; color: #fff; }
+  .bcard .cost { font-size: 15px; color: #ffd23f; margin-top: 4px; }
+  .bcard .fx { font-size: 12px; color: #ffb3d9; margin-top: 4px; line-height: 1.4; }
+  .bcard .stat { font-size: 12px; color: #7ce38b; margin-top: 3px; }
+  .bcard .editBtn {
+    display: block; margin-top: 8px; padding: 6px 10px; border: 0; border-radius: 6px;
+    background: #2f6fd0; color: #fff; font-size: 12px; cursor: pointer; width: 100%;
+  }
+  .bcard .editBtn:hover { background: #3a7fe8; }
+  .bcard .fitRow {
+    display: flex; align-items: center; gap: 5px; margin-top: 8px;
+    font-size: 12px; color: #9fd8ff; cursor: pointer; user-select: none;
+  }
+  .bcard .fitRow input { cursor: pointer; accent-color: #2f6fd0; }
+  .tool-card { display: flex; gap: 14px; }
+  .tool-card .tool {
+    flex: 1; background: #1c2438; border: 2px solid #3a4a68; border-radius: 12px;
+    padding: 20px; text-align: center; cursor: pointer;
+  }
+  .tool-card .tool:hover { border-color: #4a9eff; background: #243050; }
+  .tool-card .tool .ti { font-size: 34px; }
+  .tool-card .tool .tn { font-size: 17px; margin-top: 6px; }
+  .tool-card .tool .td { font-size: 13px; color: #9aa7c0; margin-top: 4px; }
+
+  /* —— 日志 / 帮助 / 设置 —— */
+  .log-line { font-size: 15px; padding: 5px 0; border-bottom: 1px dashed rgba(74,90,122,0.3); }
+  .log-line.good { color: #7ce38b; }
+  .log-line.warn { color: #ff5c5c; }
+  .log-line.money { color: #ffd23f; }
+  .log-line.info { color: #aab6d0; }
+  .help-line { font-size: 16px; line-height: 1.8; color: #c8d4f0; }
+  .help-line b { color: #ffd23f; }
+  .set-row { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(74,90,122,0.3); }
+  .set-row .lb { width: 180px; font-size: 16px; color: #c8d4f0; }
+  .set-row .ds { font-size: 13px; color: #9aa7c0; }
+
+  /* —— DOM Toast —— */
+  #domToast {
+    position: absolute; left: 50%; bottom: 90px; transform: translateX(-50%);
+    background: rgba(10,14,24,0.94); border: 2px solid #4a9eff; border-radius: 10px;
+    padding: 12px 26px; font-size: 16px; color: #fff;
+    display: none; z-index: 30; pointer-events: none;
+    max-width: 720px; text-align: center;
+  }
+  #domToast.good { border-color: #7ce38b; }
+  #domToast.warn { border-color: #ff5c5c; }
+</style>
+</head>
+<body>
+<div id="boot"><div class="pixel-loader"></div>正在载入冒险村…</div>
+<div id="stage">
+  <canvas id="game" width="1728" height="1080"></canvas>
+  <div id="uiRoot"></div>
+</div>
+<script>
+  // 画布铺满窗口（全屏无留白）；逻辑分辨率同步；点击/悬停按渲染记录命中矩形判断
+  (function () {
+    var c = document.getElementById('game');
+    var stage = document.getElementById('stage');
+    function fit() {
+      var w = window.innerWidth, h = window.innerHeight;
+      c.width = w; c.height = h;
+      c.style.width = w + 'px';
+      c.style.height = h + 'px';
+      stage.style.width = w + 'px';
+      stage.style.height = h + 'px';
+      if (window.__VILLAGE && window.__VILLAGE.setViewport) {
+        window.__VILLAGE.setViewport(w, h);
+      }
+    }
+    window.addEventListener('load', fit);
+    window.addEventListener('resize', fit);
+  })();
+  // 兜底：无论素材加载是否完成，2.5 秒后强制隐藏载入层
+  setTimeout(function () { var b = document.getElementById('boot'); if (b) b.style.display = 'none'; }, 2500);
+</script>
+<script src="content.js?v=54"></script>
+<script src="shadow_strips.js?v=54"></script>
+<script src="sprites.js?v=54"></script>
+<script src="engine.js?v=54"></script>
+<script src="game.js?v=54"></script>
+<script src="ui.js?v=54"></script>
+</body>
+</html>
