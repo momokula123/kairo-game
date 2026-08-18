@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 54;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 61;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -456,6 +456,7 @@
 
   /* ============ 游戏初始化 ============ */
   function newGame() {
+    clearSave();   // 重新开始：清掉旧存档
     S.screen = 'game';
     SceneManager.switchTo('game');   // 场景管理器同步
     // 相机聚焦中央城堡
@@ -503,6 +504,71 @@
     S.roads.add(gx + ',' + gy);
     GRID[gy][gx] = 3;
   }
+
+  /* ============ 进度保存（localStorage 自动存档 / 续玩 / 清档）============ */
+  function saveGame() {
+    if (S.screen !== 'game') return;
+    try {
+      const d = {
+        gold: S.gold, reputation: S.reputation, day: S.day, time: S.time, dayCount: S.dayCount,
+        roads: Array.from(S.roads),
+        farmlands: Array.from(S.farmlands),
+        buildings: S.buildings.map(b => ({ type: b.type, gx: b.gx, gy: b.gy, level: b.level, totalEarned: b.totalEarned, customers: b.customers })),
+        decors: S.decors.map(dd => ({ img: dd.img, gx: dd.gx, gy: dd.gy })),
+        crops: S.crops.map(c => ({ gx: c.gx, gy: c.gy, seedKey: c.seedKey, t: c.t, done: c.done })),
+        adventurers: S.adventurers.map(a => ({
+          name: a.name, cls: a.cls, img: a.img, healer: !!a.healer, x: a.x, y: a.y,
+          hp: a.hp, maxHp: a.maxHp, atk: a.atk, def: a.def, level: a.level, exp: a.exp,
+          gold: a.gold, speed: a.speed, mood: a.mood, tired: a.tired, equipped: a.equipped,
+          favorite: a.favorite, weapon: a.weapon || null,
+        })),
+        slimes: S.slimes.map(s => ({ type: s.type, img: s.img, name: s.name, boss: !!s.boss, x: s.x, y: s.y, hp: s.hp, maxHp: s.maxHp, atk: s.atk, exp: s.exp, gold: s.gold, size: s.size })),
+      };
+      localStorage.setItem('village_save', JSON.stringify(d));
+    } catch (e) { /* 存档失败忽略 */ }
+  }
+
+  function loadGame() {
+    let d;
+    try { d = JSON.parse(localStorage.getItem('village_save')); } catch (e) { return false; }
+    if (!d || !Array.isArray(d.buildings)) return false;
+    S.screen = 'game';
+    SceneManager.switchTo('game');
+    S.gold = (d.gold !== undefined ? d.gold : 500);
+    S.reputation = d.reputation || 0;
+    S.day = d.day || 1; S.time = (d.time !== undefined ? d.time : 8);
+    S.dayCount = d.dayCount || 1;
+    S.roads = new Set(d.roads || []);
+    S.farmlands = new Set(d.farmlands || []);
+    S.buildings = (d.buildings || []).map(bd => {
+      const b = makeBuilding(bd.type, bd.gx, bd.gy);
+      b.level = bd.level || 1;
+      b.totalEarned = bd.totalEarned || 0;
+      b.customers = bd.customers || 0;
+      return b;
+    });
+    S.decors = (d.decors || []).map(dd => ({ img: dd.img, gx: dd.gx, gy: dd.gy }));
+    S.crops = (d.crops || []).map(c => ({ gx: c.gx, gy: c.gy, seedKey: c.seedKey, t: c.t, done: !!c.done }));
+    initGrid();
+    S.adventurers = (d.adventurers || []).map(ad => Object.assign({}, ad, {
+      path: null, pathIdx: 0, targetX: 0, targetY: 0, curGx: 0, curGy: 0,
+      bubble: null, bubbleT: 0, bubbleType: null, animT: 0, animFlip: false,
+      targetBld: null, targetSlime: null, state: 'wander', adventureTimer: 0, restTimer: 0, leaveT: 0,
+    }));
+    S.slimes = (d.slimes || []).map(sl => Object.assign({}, sl, { animT: 0 }));
+    S.placeMode = null; S.selectedBuild = null; S.selectedDecor = null;
+    S.log = []; S.floatTexts = []; S.particles = []; S.buildingHits = {};
+    addLog('已读取上次存档，继续经营！', 'good');
+    return true;
+  }
+
+  function hasSave() {
+    try { return !!localStorage.getItem('village_save'); } catch (e) { return false; }
+  }
+  function clearSave() {
+    try { localStorage.removeItem('village_save'); } catch (e) {}
+  }
+
   // 初始世界：大城堡（居中）→ 城堡四周道路 → 四向出村路 → 上方森林入口 → 森林（无默认围栏）
   function buildInitialWorld() {
     const { gx1, gy1, gx2, gy2 } = VILLAGE;
@@ -936,9 +1002,25 @@
         a.mood = clamp(a.mood + 15, 0, 100);
         setBubble(a, '🍺');
       } else if (b.type === 'weapon') {
-        a.atk += 1;
-        a.equipped++;
-        setBubble(a, '💪');
+        // 武器店售卖武器：冒险者用金币购买/升级武器，装备到武器栏
+        const WDEFS = C.WEAPON_DEFS;
+        const wk = Object.keys(WDEFS);
+        const cur = a.weapon && WDEFS[a.weapon.key];
+        let cand = wk.filter(k => !cur || WDEFS[k].atk > cur.atk);
+        if (!cand.length) cand = wk;
+        const k = cand[rndi(0, cand.length - 1)];
+        const wd = WDEFS[k];
+        if (a.gold >= wd.price) {
+          a.gold -= wd.price;
+          if (a.weapon && WDEFS[a.weapon.key]) a.atk -= WDEFS[a.weapon.key].atk;
+          a.weapon = { key: k, name: wd.name, atk: wd.atk };
+          a.atk += wd.atk;
+          a.equipped = a.weapon.atk;
+          setBubble(a, wd.name);
+          floatText(a.x, a.y - 26, '买了 ' + wd.name, '#cfe8ff');
+        } else {
+          setBubble(a, '钱不够');
+        }
       } else if (b.type === 'shop') {
         a.hp = clamp(a.hp + 20, 0, a.maxHp);
         setBubble(a, '🛒');
@@ -1354,33 +1436,78 @@
 
   /* ============ 渲染标题 ============ */
   function renderTitle() {
-    drawBg();
-    // 用等距村庄场景做背景（不依赖大图，永远可见）
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    renderIsometricMap();
-    ctx.restore();
-    // 半透明遮罩
-    ctx.fillStyle = 'rgba(10,14,20,0.55)';
-    ctx.fillRect(0, 0, W, H);
+    // 首页背景：优先用 AI 生成的视频（游戏 × 视频结合），无视频时回退等距村庄场景
+    const tv = document.getElementById('titleVideo');
+    if (tv && tv.readyState >= 2 && tv.videoWidth > 0) {
+      ctx.drawImage(tv, 0, 0, W, H);
+      // 半透明遮罩
+      ctx.fillStyle = 'rgba(10,14,20,0.45)';
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      drawBg();
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      renderIsometricMap();
+      ctx.restore();
+      // 半透明遮罩
+      ctx.fillStyle = 'rgba(10,14,20,0.55)';
+      ctx.fillRect(0, 0, W, H);
+    }
 
-    drawPixelText('冒 险 村 物 语', W / 2, 135, 76, '#ffd23f', 'center');
+    // 浮动光点（背景星尘动画）
+    const tNow = performance.now();
+    for (let i = 0; i < 26; i++) {
+      const sp = 0.012 + (i % 3) * 0.008;
+      const px = ((i * 137.5) % (W + 40) + tNow * sp) % (W + 40) - 20;
+      const py = ((i * 53) % (H + 40) + Math.sin(tNow / 900 + i) * 20) % (H + 40) - 20;
+      ctx.fillStyle = 'rgba(255,255,220,' + (0.22 + 0.2 * Math.sin(tNow / 700 + i)) + ')';
+      ctx.beginPath();
+      ctx.arc(px, py, 1 + (i % 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 标题（渐变 + 光晕动画）
+    const grad = ctx.createLinearGradient(0, 90, 0, 205);
+    grad.addColorStop(0, '#fff6c0');
+    grad.addColorStop(0.5, '#ffd23f');
+    grad.addColorStop(1, '#ff8f2f');
+    ctx.save();
+    ctx.shadowColor = 'rgba(255,180,40,' + (0.5 + 0.3 * Math.sin(tNow / 800)) + ')';
+    ctx.shadowBlur = 30;
+    drawPixelText('冒 险 村 物 语', W / 2, 135, 76, grad, 'center');
+    ctx.restore();
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     roundedRect(W / 2 - 375, 123, 750, 100, 12);
     ctx.fill();
     drawText('~ 2.5D Isometric Adventure Village ~', W / 2, 248, 22, '#e8f0ff', 'center');
 
-    // 按钮
-    let y = 405;
-    const btns = [
-      { label: '▶ 开始经营村庄', cb: newGame },
-      { label: '📖 玩法说明', cb: () => { S.screen = 'help'; } },
-    ];
-    for (const b of btns) {
-      const hover = mouseIn(W / 2 - 225, y, 450, 78);
-      drawPanel(W / 2 - 225, y, 450, 78, hover ? '#3a5a8a' : '#24466e', '#7ce38b', 2);
-      drawText(b.label, W / 2, y + 21, 28, '#ffffff', 'center');
-      y += 102;
+    // 按钮（有存档显示"继续经营"，横排）
+    const hasS = hasSave();
+    const btns = [];
+    if (hasS) {
+      btns.push({ label: '继续经营', cb: loadGame });
+      btns.push({ label: '重新开始', cb: () => { clearSave(); newGame(); } });
+    } else {
+      btns.push({ label: '开始经营村庄', cb: newGame });
+    }
+    btns.push({ label: '玩法说明', cb: () => { S.screen = 'help'; } });
+    if (btns.length === 3) {
+      const bw = 300, gapB = 22, x0 = W / 2 - (bw * 3 + gapB * 2) / 2;
+      let x = x0;
+      for (const b of btns) {
+        const hover = mouseIn(x, 400, bw, 80);
+        drawPanel(x, 400, bw, 80, hover ? '#3a5a8a' : '#24466e', '#7ce38b', 2);
+        drawText(b.label, x + bw / 2, 423, 25, '#ffffff', 'center');
+        x += bw + gapB;
+      }
+    } else {
+      let y = 405;
+      for (const b of btns) {
+        const hover = mouseIn(W / 2 - 225, y, 450, 78);
+        drawPanel(W / 2 - 225, y, 450, 78, hover ? '#3a5a8a' : '#24466e', '#7ce38b', 2);
+        drawText(b.label, W / 2, y + 21, 28, '#ffffff', 'center');
+        y += 102;
+      }
     }
 
     // 素材展示
@@ -1686,8 +1813,10 @@
             if (pMax > pMin) {
               // 菱形左右顶点宽 = size*TILE_W，等比缩放
               dw = Math.round(160 * ((bsize * TILE_W) / ((pMax - pMin) * 160)));
-              // 城堡/农场（多线条复杂轮廓 / 横长地块）按自然比例；其余全部菱形贴合（黄线紧贴蓝线）
+              // 城堡/农场（多线条复杂轮廓 / 横长地块）按自然比例；宽幅贴图（AI 生成的 16:9 等）保持比例防畸变；其余全部菱形贴合（黄线紧贴蓝线）
               if (b.type === 'castle' || b.type === 'farm') {
+                dh = Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)));
+              } else if (img.naturalHeight && img.naturalWidth && (img.naturalWidth / img.naturalHeight) > 1.35) {
                 dh = Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)));
               } else {
                 dh = dw;
@@ -1802,31 +1931,43 @@
             ctx.textBaseline = 'middle';
             ctx.fillText(icon, p.x, topY + 30);
           }
-          // 调试：沿图片底部非透明像素轮廓画 5px 显眼黄色虚线（标出两个底边）
-          if (S.debugBuildingBase && img && img.width > 0 && img.bottomProfile) {
-            const prof = img.bottomProfile, ow = img.naturalWidth;
-            ctx.save();
-            ctx.setLineDash([8, 5]);
-            ctx.strokeStyle = '#ffd23f';
-            ctx.lineWidth = 5;
-            ctx.lineJoin = 'round';
-            ctx.lineCap = 'round';
-            ctx.beginPath();
-            let started = false;
-            for (let x = 0; x < ow; x++) {
-              const r = prof[x];
-              if (r < 0) continue;
-              const sx = p.x - dw / 2 + (x / ow) * dw;
-              // 农场：黄线 = 菱形底边（V 形，四角已映射贴到菱形，底边贴合蓝 V）；其余按原图底部轮廓
-              const sy = (b.type === 'farm')
-                ? (sx <= p.x ? p.y + TILE_H + ((sx - (p.x - TILE_W)) / TILE_W) * TILE_H
-                             : p.y + TILE_H + (((p.x + TILE_W) - sx) / TILE_W) * TILE_H)
-                : topY + Math.min(r, img.bottomRatio || 1) * dh;
-              if (!started) { ctx.moveTo(sx, sy); started = true; }
-              else ctx.lineTo(sx, sy);
+          // 调试：黄线——农场（平铺地块）画菱形底边；其余（含新建筑）沿图片底部轮廓，严格参考老建筑
+          if (S.debugBuildingBase && img && img.width > 0) {
+            const isDiamond = (b.type === 'farm');
+            if (isDiamond) {
+              ctx.save();
+              ctx.setLineDash([8, 5]);
+              ctx.strokeStyle = '#ffd23f';
+              ctx.lineWidth = 5;
+              ctx.lineJoin = 'round';
+              ctx.lineCap = 'round';
+              ctx.beginPath();
+              ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
+              ctx.lineTo(p.x, p.y + 2 * TILE_H);              // 下角尖
+              ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
+              ctx.stroke();
+              ctx.restore();
+            } else if (img.bottomProfile) {
+              const prof = img.bottomProfile, ow = img.naturalWidth;
+              ctx.save();
+              ctx.setLineDash([8, 5]);
+              ctx.strokeStyle = '#ffd23f';
+              ctx.lineWidth = 5;
+              ctx.lineJoin = 'round';
+              ctx.lineCap = 'round';
+              ctx.beginPath();
+              let started = false;
+              for (let x = 0; x < ow; x++) {
+                const r = prof[x];
+                if (r < 0) continue;
+                const sx = p.x - dw / 2 + (x / ow) * dw;
+                const sy = topY + Math.min(r, img.bottomRatio || 1) * dh;
+                if (!started) { ctx.moveTo(sx, sy); started = true; }
+                else ctx.lineTo(sx, sy);
+              }
+              ctx.stroke();
+              ctx.restore();
             }
-            ctx.stroke();
-            ctx.restore();
           }
           // 调试：2x2 建造方块的两条底边（青色 5px 虚线）——黄线应贴合这条青线
           if (S.debugBuildingBase) {
@@ -1914,9 +2055,18 @@
             ctx.scale(s._scale, s._scale);
             ctx.translate(-s.x, -(s.y + s.size / 2));
           }
+          // 脚下红圈（把原来的绿色地面阴影改成红色圈，指示敌人位置）
+          const R = s.size / 2;
+          const gy = s.y + s.size / 2;   // 脚底地面
+          ctx.beginPath();
+          ctx.ellipse(s.x, gy, R, Math.max(5, R * 0.32), 0, 0, Math.PI * 2);
+          ctx.fillStyle = s.boss ? 'rgba(255,90,30,0.30)' : 'rgba(255,40,40,0.25)';
+          ctx.fill();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = s.boss ? '#ff7a2f' : '#ff3b3b';
+          ctx.stroke();
+          // 怪物本体贴图（保留形象）
           if (img && img.width > 0) {
-            // 地面阴影（统一阴影系统：单格菱形，贴合怪物本体；收缩系数查静态配置）
-            SpriteKit.Shadow.draw(ctx, { img, x: s.x, groundY: s.y + s.size / 2, tileW: TILE_W / 2, w: s.size, h: s.size, projX: 40, key: s.img });
             ctx.drawImage(img, s.x - s.size / 2, s.y - s.size / 2 - bounce, s.size, s.size);
           } else {
             ctx.fillStyle = '#3dbf6a';
@@ -2054,16 +2204,20 @@
             ctx.stroke();
             drawText(a.bubble, bx, by + 5, 11, '#1a1f2e', 'center');
           }
-          // 属性面板（点击后跟随人物显示 10 秒）
+          // 属性面板（点击后跟随人物显示 10 秒；含武器栏）
           if (a._infoT > 0) {
             a._infoT -= gDt;
-            const px = a.x, py = a.y - 132;
-            drawPanel(px - 62, py, 124, 96, 'rgba(10,14,24,0.92)', '#4a9eff', 1);
+            const hasW = !!(a.weapon && a.weapon.name);
+            const px = a.x, py = a.y - 132 - (hasW ? 16 : 0);
+            drawPanel(px - 62, py, 124, hasW ? 112 : 96, 'rgba(10,14,24,0.92)', '#4a9eff', 1);
             drawText(a.name, px, py + 16, 13, '#ffd23f', 'center');
             drawText(a.cls + ' Lv.' + a.level, px, py + 34, 11, '#9aa7c0', 'center');
-            drawText('❤ ' + Math.round(a.hp) + ' / ' + a.maxHp, px, py + 50, 11, '#ff8a8a', 'center');
-            drawText('⚔ ' + a.atk + '   🛡 ' + a.def, px, py + 66, 11, '#ffd2a8', 'center');
-            drawText('💰 ' + a.gold + '  心情 ' + a.mood.toFixed(1), px, py + 82, 10, '#7ce38b', 'center');
+            drawText('HP ' + Math.round(a.hp) + ' / ' + a.maxHp, px, py + 50, 11, '#ff8a8a', 'center');
+            drawText('ATK ' + a.atk + '  DEF ' + a.def, px, py + 66, 11, '#ffd2a8', 'center');
+            drawText('GOLD ' + a.gold + '  心情 ' + a.mood.toFixed(1), px, py + 82, 10, '#7ce38b', 'center');
+            if (hasW) {
+              drawText('武器 ' + a.weapon.name + ' +' + a.weapon.atk, px, py + 98, 10, '#cfe8ff', 'center');
+            }
           }
         }
       });
@@ -2395,6 +2549,13 @@
     S.lastTime = t;
     gDt = dt / 1000;   // 秒数（供属性面板倒计时）
 
+    // 自动存档（游戏中每 5 秒节流）
+    if (S.screen === 'game') {
+      if (S._saveT === undefined) S._saveT = 0;
+      S._saveT += dt;
+      if (S._saveT > 5000) { S._saveT = 0; saveGame(); }
+    }
+
     const sc = SceneManager.current;
     if (sc) {
       if (sc.update && S.screen === 'game') sc.update(dt);
@@ -2478,11 +2639,13 @@
           .catch(() => { /* 无配置文件时用内嵌 FARM_CORNERS */ });
       }
     }
+    // 有存档：自动续玩（进游戏），否则留在标题页
+    if (hasSave()) loadGame();
   });
 
   // 调试钩子（ui.js 模态菜单通过此接口驱动游戏）
   window.__VILLAGE = {
-    S, newGame, placeBuildingAt, placeRoadAt, placeDecorAt, demolishAt, upgradeBuilding,
+    S, newGame, saveGame, loadGame, hasSave, clearSave, placeBuildingAt, placeRoadAt, placeDecorAt, demolishAt, upgradeBuilding,
     makeAdventurer, makeSlime, advanceTime, updateAdventurers, updateSlimes, onNewDay,
     handleClicks, IMG, IMG_SRC, SpriteKit, SceneManager, Content: C, Engine: E,
     camera, setViewport,   // 相机（地图滚动）+ 窗口铺满同步

@@ -1,6 +1,20 @@
 /* ============================================================
  * 冒险村物语 - 素材模块（贴图注册 + SpriteKit 像素能力）
  * IMG_SRC 注册新的贴图；ALIGN_KEYS/MASK_KEYS 决定自动能力
+ * ============================================================
+ *
+ * ★ 装配铁规（严格参考 content.js 顶部"开发铁规"）★
+ * 新增内容的【贴图装配】全部在此文件完成，缺一不可：
+ *   1. IMG_SRC                    → 贴图引用 'assets/xxx.png'
+ *   2. ALIGN_KEYS                 → 底边自动对齐（底部非透明像素落地面）
+ *   3. MASK_KEYS                  → 像素蒙版（角色被建筑遮挡，建筑专属）
+ *   4. SHADOW_KEYS                → 形状蒙版阴影
+ *   5. Shadow.config.shrinkX      → 建筑 1 / 装饰·人物·怪物 0.03
+ *   6. Shadow.config.projScale    → 建筑 1 / 装饰·人物·怪物 0.5
+ *   7. 阴影条带缓存               → 复用同形状参考条带（新建筑复用 inn，
+ *                                   key 形如 '新建筑|0|0|84'）
+ * 禁止对单一贴图写 if 特判；新贴图规格：透明 PNG / 正方形 / 主体居中 /
+ * 底部贴地 / 清理孤立噪点像素。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -46,23 +60,29 @@
     castle: 'assets/castle.png',
     farm: 'assets/farm.png?v=5',
     seedshop: 'assets/seedshop.png?v=2',
+    forge: 'assets/forge.png?v=1',
+    market: 'assets/market.png?v=1',
+    shrine: 'assets/shrine.png?v=1',
+    library: 'assets/library.png?v=1',
   };
 
   // 需要"底部像素贴地"数据的贴图 key（人物/建筑/装饰/怪物通用）
   const ALIGN_KEYS = new Set([
     'inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle',
     'farm', 'seedshop',
+    'forge', 'market', 'shrine', 'library',
     'fence_a', 'fence_b',
     'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
     'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well',
     'slime', 'goblin', 'bat', 'slimeking',
   ]);
   // 需要"像素蒙版遮挡"的贴图 key（建筑，正方形蒙版）
-  const MASK_KEYS = new Set(['inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle', 'farm', 'seedshop']);
+  const MASK_KEYS = new Set(['inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle', 'farm', 'seedshop', 'forge', 'market', 'shrine', 'library']);
   // 需要"形状蒙版阴影"的贴图 key（建筑 + 装饰 + 人物 + 怪物 → 统一阴影生成）
   const SHADOW_KEYS = new Set([
     'inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle',
     'farm', 'seedshop',
+    'forge', 'market', 'shrine', 'library',
     'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well', 'fence_a', 'fence_b',
     'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
     'slime', 'goblin', 'bat', 'slimeking',
@@ -91,7 +111,14 @@
         for (let x = 0; x < ow; x++) {
           let bottom = -1;
           for (let y = oh - 1; y >= 0; y--) {
-            if (d[(y * ow + x) * 4 + 3] > 8) { bottom = y; break; }
+            if (d[(y * ow + x) * 4 + 3] > 8) {
+              // 噪点过滤：孤立散点（上下左右 1px 内无其他不透明像素）视为底部噪点，忽略
+              const up = y > 0 && d[((y - 1) * ow + x) * 4 + 3] > 8;
+              const dn = y < oh - 1 && d[((y + 1) * ow + x) * 4 + 3] > 8;
+              const lf = x > 0 && d[(y * ow + x - 1) * 4 + 3] > 8;
+              const rt = x < ow - 1 && d[(y * ow + x + 1) * 4 + 3] > 8;
+              if (up || dn || lf || rt) { bottom = y; break; }
+            }
           }
           profile[x] = bottom < 0 ? -1 : bottom / oh;
           if (bottom >= 0) {
@@ -286,6 +313,7 @@
         // 横向收缩系数（建筑不收缩，其余 0.03 极窄）
         shrinkX: {
           inn: 1, tavern: 1, weapon: 1, shop: 1, bakery: 1, magicshop: 1, training: 1, clinic: 1, castle: 1,
+          forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（不收缩）
           tree: 0.03, fruittree: 0.03, fountain: 0.03, chest: 0.03, lamp: 0.03, flag: 0.03, well: 0.03, fence_a: 0.03, fence_b: 0.03,
           ck_knight: 0.03, ck_mage: 0.03, ck_priest: 0.03, ck_archer: 0.03,
           ck_monk: 0.03, ck_rogue: 0.03, ck_valkyrie: 0.03, ck_paladin: 0.03,
@@ -294,6 +322,7 @@
         // 投影方向（左下↔右上）长度缩放：建筑 1（还原），其余 0.5
         projScale: {
           inn: 1, tavern: 1, weapon: 1, shop: 1, bakery: 1, magicshop: 1, training: 1, clinic: 1, castle: 1,
+          forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（还原）
           tree: 0.5, fruittree: 0.5, fountain: 0.5, chest: 0.5, lamp: 0.5, flag: 0.5, well: 0.5, fence_a: 0.5, fence_b: 0.5,
           ck_knight: 0.5, ck_mage: 0.5, ck_priest: 0.5, ck_archer: 0.5,
           ck_monk: 0.5, ck_rogue: 0.5, ck_valkyrie: 0.5, ck_paladin: 0.5,
@@ -374,6 +403,13 @@
   if (typeof window !== 'undefined' && window.SHADOW_STRIPS) {
     for (const k in window.SHADOW_STRIPS) {
       SpriteKit._shadowCache.set(k, window.SHADOW_STRIPS[k]);
+    }
+    // 新建筑按旅店做法：阴影条带复用旅店的（方形小屋底部轮廓近似，尺寸同 2x2 / 84）
+    const innStrips = window.SHADOW_STRIPS['inn|0|0|84'];
+    if (innStrips) {
+      for (const nb of ['forge', 'market', 'shrine', 'library']) {
+        SpriteKit._shadowCache.set(nb + '|0|0|84', innStrips);
+      }
     }
   }
 
