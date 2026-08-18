@@ -313,6 +313,7 @@
         // 横向收缩系数（建筑不收缩，其余 0.03 极窄）
         shrinkX: {
           inn: 1, tavern: 1, weapon: 1, shop: 1, bakery: 1, magicshop: 1, training: 1, clinic: 1, castle: 1,
+          farm: 1, seedshop: 1,   // 建筑（补齐管线）
           forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（不收缩）
           tree: 0.03, fruittree: 0.03, fountain: 0.03, chest: 0.03, lamp: 0.03, flag: 0.03, well: 0.03, fence_a: 0.03, fence_b: 0.03,
           ck_knight: 0.03, ck_mage: 0.03, ck_priest: 0.03, ck_archer: 0.03,
@@ -322,6 +323,7 @@
         // 投影方向（左下↔右上）长度缩放：建筑 1（还原），其余 0.5
         projScale: {
           inn: 1, tavern: 1, weapon: 1, shop: 1, bakery: 1, magicshop: 1, training: 1, clinic: 1, castle: 1,
+          farm: 1, seedshop: 1,   // 建筑（补齐管线）
           forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（还原）
           tree: 0.5, fruittree: 0.5, fountain: 0.5, chest: 0.5, lamp: 0.5, flag: 0.5, well: 0.5, fence_a: 0.5, fence_b: 0.5,
           ck_knight: 0.5, ck_mage: 0.5, ck_priest: 0.5, ck_archer: 0.5,
@@ -413,6 +415,40 @@
     }
   }
 
+  // ═══ 管线校验 callback（开发铁规）═══
+  // 新增内容若未按 content.js 顶部"开发铁规"完整注册（IMG_SRC / ALIGN_KEYS /
+  // MASK_KEYS / SHADOW_KEYS / shrinkX / projScale），启动时在此报错：
+  // console.error + 页面顶部红色横幅（浏览器可见报错），强制回到管线补注册。
+  function validatePipeline() {
+    const C = global.Content;
+    if (!C) return;
+    const errs = [];
+    const base = (kind, name, key) => {
+      if (!IMG_SRC[key]) errs.push(kind + '[' + name + '] 缺 IMG_SRC 贴图引用');
+      if (!ALIGN_KEYS.has(key)) errs.push(kind + '[' + name + '] 缺 ALIGN_KEYS 底边对齐');
+      if (!SHADOW_KEYS.has(key)) errs.push(kind + '[' + name + '] 缺 SHADOW_KEYS 阴影');
+      if (SpriteKit.Shadow.config.shrinkX[key] == null) errs.push(kind + '[' + name + '] 缺 shrinkX 配置');
+      if (SpriteKit.Shadow.config.projScale[key] == null) errs.push(kind + '[' + name + '] 缺 projScale 配置');
+    };
+    for (const k in C.BUILD_DEFS) {
+      base('建筑', C.BUILD_DEFS[k].name, k);
+      if (!MASK_KEYS.has(k)) errs.push('建筑[' + C.BUILD_DEFS[k].name + '] 缺 MASK_KEYS 蒙版遮挡');
+    }
+    for (const k in C.CLASS_DEFS) base('职业', C.CLASS_DEFS[k].name, C.CLASS_DEFS[k].img);
+    for (const k in C.MONSTER_DEFS) base('怪物', C.MONSTER_DEFS[k].name, C.MONSTER_DEFS[k].img);
+    for (const k in C.DECOR_DEFS) base('装饰', C.DECOR_DEFS[k].name, k);
+    if (errs.length) {
+      const msg = '[开发铁规·管线校验] 以下内容未按管线完整注册（开发事故）：\n' + errs.join('\n');
+      console.error(msg);
+      try {
+        const d = document.createElement('div');
+        d.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#c62828;color:#fff;font:12px/1.6 monospace;padding:8px 12px;white-space:pre-wrap;border-bottom:3px solid #ff8a80;';
+        d.textContent = msg;
+        document.body.appendChild(d);
+      } catch (e) { /* 页面报错失败则至少 console */ }
+    }
+  }
+
   // ═══ 缓存1 构建（纯计算，与实体位置 cx/groundY 无关）═══
   // 蒙版 → L1 裁剪 → 连续段条带（存 [uL,uR,v0,v1] 归一化 0~1）。
   // 用占位 cx=0、groundY=0 计算：u/v 归一化会抵消位置，结果适用于任意实体位置。
@@ -487,7 +523,7 @@
   // 同时静态读取缓存2（shadow_config.json），两者都完成才进入游戏
   function loadAssets(cb) {
     let remaining = Object.keys(IMG_SRC).length + 1;   // +1 = 阴影配置
-    const onLoad = () => { if (--remaining <= 0) cb(); };
+    const onLoad = () => { if (--remaining <= 0) { validatePipeline(); cb(); } };
     SpriteKit.Shadow.loadConfig(onLoad);               // 静态读取缓存2
     for (const k in IMG_SRC) {
       const img = new Image();
