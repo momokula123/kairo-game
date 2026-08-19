@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 80;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 81;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1946,13 +1946,14 @@
                 drawTri([s00, s11, s01], [d00, d11, d01]);
               }
             } else {
-              // 插件选择性透视（corner≠0 时站立建筑底部 V 形夹角透视变换；corner=0 站立 drawImage）
+              // 插件选择性透视（corner≠0 站立+底部V形夹角；corner=0 站立；dy 上下平移）
               const plug = (S.pluginData && S.pluginData.building_perspective && S.pluginData.building_perspective[b.type]) || null;
               const corner = plug ? (plug.corner || 0) : 0;
+              const dy = plug ? (plug.dy || 0) : 0;
               if (corner !== 0 && img && img.width > 0) {
-                drawBuildingV(ctx, img, p.x, topY, groundY, dw, corner, 16);   // 站立+底部 V 形（corner 调夹角）
+                drawBuildingV(ctx, img, p.x, topY + dy, groundY + dy, dw, corner, 16);
               } else {
-                ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
+                ctx.drawImage(img, p.x - dw / 2, topY + dy, dw, dh);
               }
             }
           } else {
@@ -2664,8 +2665,13 @@
     const slider = document.getElementById('tbSlider');
     slider.addEventListener('input', () => {
       document.getElementById('tbVal').textContent = slider.value;
-      if (tbCurrent) writeCorner(tbCurrent, parseInt(slider.value, 10) || 0);
+      if (tbCurrent) writeTweak(tbCurrent, { corner: parseInt(slider.value, 10) || 0, dy: parseInt(document.getElementById('tbDY').value, 10) || 0 });
       updateTBAngle();
+    });
+    const dslider = document.getElementById('tbDY');
+    dslider.addEventListener('input', () => {
+      document.getElementById('tbDYVal').textContent = dslider.value;
+      if (tbCurrent) writeTweak(tbCurrent, { corner: parseInt(slider.value, 10) || 0, dy: parseInt(dslider.value, 10) || 0 });
     });
     updateTBAngle();
   }
@@ -2678,21 +2684,24 @@
     });
     const plug = (S.pluginData && S.pluginData.building_perspective && S.pluginData.building_perspective[k]) || null;
     const v = plug ? (plug.corner || 0) : 0;
+    const dyv = plug ? (plug.dy || 0) : 0;
     document.getElementById('tbSlider').value = v;
     document.getElementById('tbVal').textContent = v;
+    document.getElementById('tbDY').value = dyv;
+    document.getElementById('tbDYVal').textContent = dyv;
     updateTBAngle();
   }
   function updateTBAngle() {
     const v = parseInt(document.getElementById('tbSlider').value, 10) || 0;
     document.getElementById('tbAngle').textContent = '黄线夹角 ' + (180 - 2 * Math.atan2(v, 84) * 180 / Math.PI).toFixed(1) + '°';
   }
-  // 实时写入插件配置（游戏插件入口热更新渲染）
-  function writeCorner(k, v) {
+  // 实时写入插件配置（面向对象：每建筑 {corner 夹角, dy 上下平移}）
+  function writeTweak(k, obj) {
     try {
       const raw = localStorage.getItem('kairo_plugin');
       const d = raw ? JSON.parse(raw) : {};
       const bp = (d.data && d.data.building_perspective) ? d.data.building_perspective : {};
-      bp[k] = { corner: v };
+      bp[k] = obj;
       localStorage.setItem('kairo_plugin', JSON.stringify({ v: Date.now(), data: { building_perspective: bp } }));
     } catch (e) { /* 忽略 */ }
   }
