@@ -134,22 +134,23 @@
     }
     const ratio = bp ? bp.ratio : 1;
     const topY = groundY - ratio*dh;      // 贴图底部贴地（不浮空，同游戏）
-    // 蓝线（地块菱形）
-    drawDiamond(c, cx, groundY, tw, th, corner, '#00e5ff', [8,5], 3);
-    // 贴图（底部按黄线夹角裁成 V 形——图片透视随夹角变化，与游戏一致）
-    c.save();
-    c.beginPath();
-    c.moveTo(cx-dw/2, groundY);             // 贴图底部左端
-    c.lineTo(cx, groundY+corner);           // V 形下角（corner 夹角）
-    c.lineTo(cx+dw/2, groundY);             // 贴图底部右端
-    c.lineTo(cx+dw/2, topY);                // 右上
-    c.lineTo(cx-dw/2, topY);                // 左上
-    c.closePath();
-    c.clip();
+    // 蓝线（固定地块菱形，游戏源码方案，不随 corner）
+    drawDiamond(c, cx, groundY, tw, th, 0, '#00e5ff', [8,5], 3);
+    // 贴图（游戏源码：底边贴合直接绘制，不裁剪）
     c.drawImage(img, cx-dw/2, topY, dw, dh);
-    c.restore();
-    // 黄线（菱形，自动贴合蓝线，同形状）
-    drawDiamond(c, cx, groundY, tw, th, corner, '#ffd23f', [6,4], 3.5);
+    // 黄线（沿贴图底部非透明像素轮廓，游戏源码原始方案）
+    if (bp && bp.prof) {
+      const prof = bp.prof;
+      c.save(); c.setLineDash([5,3]); c.strokeStyle='#ffd23f'; c.lineWidth=2.5; c.lineJoin='round';
+      c.beginPath(); let st=false;
+      for(let x=0;x<ow;x++){
+        const r=prof[x]; if(r<0)continue;
+        const sx=cx-dw/2+(x/ow)*dw;
+        const sy=topY+Math.min(r,ratio)*dh;
+        if(!st){c.moveTo(sx,sy);st=true}else c.lineTo(sx,sy);
+      }
+      c.stroke(); c.restore();
+    }
   }
   // 菜单
   const menu = document.getElementById('menu');

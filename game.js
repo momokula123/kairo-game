@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 73;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 74;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1968,19 +1968,7 @@
                 drawTri([s00, s11, s01], [d00, d11, d01]);
               }
             } else {
-              // 贴图底部按黄线夹角裁成 V 形：corner 调夹角 → 图片透视随夹角变化
-              const corner = getCornerTweak()[b.type] || 0;
-              ctx.save();
-              ctx.beginPath();
-              ctx.moveTo(p.x - dw / 2, groundY);          // 贴图底部左端
-              ctx.lineTo(p.x, groundY + corner);          // V 形下角（corner 夹角）
-              ctx.lineTo(p.x + dw / 2, groundY);          // 贴图底部右端
-              ctx.lineTo(p.x + dw / 2, topY);             // 右上
-              ctx.lineTo(p.x - dw / 2, topY);             // 左上
-              ctx.closePath();
-              ctx.clip();
-              ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
-              ctx.restore();
+              ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);   // 游戏源码：底边贴合直接绘制，不裁剪
             }
           } else {
             ctx.fillStyle = '#8a5a3b';
@@ -1992,9 +1980,9 @@
             ctx.textBaseline = 'middle';
             ctx.fillText(icon, p.x, topY + 30);
           }
-          // 调试：黄线 = 菱形底边（自动贴合蓝色菱形虚线），下角随 corner 微调
-          if (S.debugBuildingBase && img && img.width > 0) {
-            const corner = getCornerTweak()[b.type] || 0;
+          // 调试：黄线——沿图片底部非透明像素轮廓画 5px 显眼黄色虚线（游戏源码原始方案）
+          if (S.debugBuildingBase && img && img.width > 0 && img.bottomProfile) {
+            const prof = img.bottomProfile, ow = img.naturalWidth;
             ctx.save();
             ctx.setLineDash([8, 5]);
             ctx.strokeStyle = '#ffd23f';
@@ -2002,15 +1990,20 @@
             ctx.lineJoin = 'round';
             ctx.lineCap = 'round';
             ctx.beginPath();
-            ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
-            ctx.lineTo(p.x, p.y + 2 * TILE_H + corner);     // 下角尖（corner 微调）
-            ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
+            let started = false;
+            for (let x = 0; x < ow; x++) {
+              const r = prof[x];
+              if (r < 0) continue;
+              const sx = p.x - dw / 2 + (x / ow) * dw;
+              const sy = topY + Math.min(r, img.bottomRatio || 1) * dh;
+              if (!started) { ctx.moveTo(sx, sy); started = true; }
+              else ctx.lineTo(sx, sy);
+            }
             ctx.stroke();
             ctx.restore();
           }
-          // 调试：2x2 建造方块的两条底边（青色 5px 虚线）——黄线自动贴合这条青线
+          // 调试：2x2 建造方块的两条底边（青色 5px 虚线）——游戏源码原始方案（固定地块，不随微调）
           if (S.debugBuildingBase) {
-            const corner = getCornerTweak()[b.type] || 0;
             ctx.save();
             ctx.setLineDash([8, 5]);
             ctx.strokeStyle = '#00e5ff';
@@ -2018,7 +2011,7 @@
             ctx.lineJoin = 'round';
             ctx.beginPath();
             ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
-            ctx.lineTo(p.x, p.y + 2 * TILE_H + corner);     // 下角尖（corner 微调）
+            ctx.lineTo(p.x, p.y + 2 * TILE_H);              // 下角尖
             ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
             ctx.stroke();
             ctx.restore();
