@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 81;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 82;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -214,6 +214,7 @@
     weekDay: 0,
     hirePool: [],
     mascotLevel: 1,
+    perspCache: {},   // 建筑透视变换离屏缓存（corner 变才重建，每帧仅 blit）
   };
 
   /* ═══ 插件系统入口（唯一主代码接入点）═══
@@ -230,6 +231,7 @@
       if (d && d.v && d.v !== _pluginVer) {
         _pluginVer = d.v;
         S.pluginData = (d.data && typeof d.data === 'object') ? d.data : {};
+        S.perspCache = {};   // 插件更新 → 清透视缓存（corner 变化）
       }
     } catch (e) { /* 忽略 */ }
   }
@@ -1951,7 +1953,8 @@
               const corner = plug ? (plug.corner || 0) : 0;
               const dy = plug ? (plug.dy || 0) : 0;
               if (corner !== 0 && img && img.width > 0) {
-                drawBuildingV(ctx, img, p.x, topY + dy, groundY + dy, dw, corner, 16);
+                const pc = getPerspCanvas(b.type, img, corner, dw, dh);   // 离屏缓存（GPU 图像变换），每帧仅 blit
+                ctx.drawImage(pc, p.x - pc.width / 2, topY + dy);
               } else {
                 ctx.drawImage(img, p.x - dw / 2, topY + dy, dw, dh);
               }
@@ -2622,6 +2625,22 @@
       drawTri([s00, s10, s11], [d00, d10, d11]);
       drawTri([s00, s11, s01], [d00, d11, d01]);
     }
+  }
+
+  // 透视变换离屏缓存：corner 变时生成一次（GPU 加速图像变换），每帧只 blit 一张图（流畅）
+  function getPerspCanvas(btype, img, corner, dw, dh) {
+    const key = btype + '|' + corner;
+    let pc = S.perspCache[key];
+    if (pc) return pc;
+    const ratio = img.bottomRatio || 1;
+    const w = Math.max(2, Math.ceil(dw));
+    const h = Math.max(4, Math.ceil(ratio * dh + Math.max(0, corner) + 4));
+    pc = document.createElement('canvas');
+    pc.width = w; pc.height = h;
+    const g = pc.getContext('2d');
+    drawBuildingV(g, img, w / 2, 0, ratio * dh, dw, corner, 10);
+    S.perspCache[key] = pc;
+    return pc;
   }
 
   function detectFarmCorners(img) {
