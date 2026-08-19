@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 71;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 72;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1968,7 +1968,19 @@
                 drawTri([s00, s11, s01], [d00, d11, d01]);
               }
             } else {
+              // 贴图按黄线菱形夹角做 V 形裁剪：corner 微调夹角 → 图片实际渲染随夹角变化
+              const corner = getCornerTweak()[b.type] || 0;
+              ctx.save();
+              ctx.beginPath();
+              ctx.moveTo(p.x - TILE_W, p.y + TILE_H);          // 左角（菱形）
+              ctx.lineTo(p.x, p.y + 2 * TILE_H + corner);      // 下角尖（corner 夹角）
+              ctx.lineTo(p.x + TILE_W, p.y + TILE_H);          // 右角
+              ctx.lineTo(p.x + dw / 2 + 6, topY - 6);          // 右上（覆盖贴图）
+              ctx.lineTo(p.x - dw / 2 - 6, topY - 6);          // 左上
+              ctx.closePath();
+              ctx.clip();
               ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
+              ctx.restore();
             }
           } else {
             ctx.fillStyle = '#8a5a3b';
