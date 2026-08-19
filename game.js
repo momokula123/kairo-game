@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 74;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 75;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1386,48 +1386,6 @@
     const pd = pad == null ? 130 : pad;
     return wx + pd > camera.x && wx - pd < camera.x + W && wy + pd > camera.y && wy - pd < camera.y + H;
   }
-  // 建筑下角微调：config.ini（持久化文件）为基础值 + localStorage（tweak.html 实时写入）覆盖。
-  // getCornerTweak 每 0.5s 重读 localStorage → 浏览器里所有游戏页不刷新也实时同步。
-  let _cornerTweak = {};
-  let _iniBase = {};
-  let _ctLast = 0;
-  function getCornerTweak() {
-    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
-    if (now - _ctLast > 500) {
-      _ctLast = now;
-      const t = {};
-      for (const k in _iniBase) t[k] = _iniBase[k];
-      try {
-        const ls = JSON.parse(localStorage.getItem('cornerTweak') || '{}');
-        for (const k in ls) t[k] = ls[k];
-      } catch (e) { /* 忽略 */ }
-      _cornerTweak = t;
-    }
-    return _cornerTweak;
-  }
-  // 启动读取 config.ini（游戏目录配置文件）作为基础值
-  function loadCornerTweak() {
-    const apply = () => { _ctLast = 0; getCornerTweak(); };
-    if (typeof fetch !== 'undefined') {
-      fetch('config.ini', { cache: 'no-store' })
-        .then(r => r.ok ? r.text() : '')
-        .then(txt => {
-          const t = {}; let inC = false;
-          for (const line of txt.split('\n')) {
-            const s = line.trim();
-            if (!s || s[0] === ';' || s[0] === '#') continue;
-            if (s[0] === '[') { inC = (s === '[corner]'); continue; }
-            if (!inC) continue;
-            const i = s.indexOf('=');
-            if (i > 0) { const v = parseInt(s.slice(i + 1).trim(), 10); if (!isNaN(v)) t[s.slice(0, i).trim()] = v; }
-          }
-          _iniBase = t;
-          apply();
-        })
-        .catch(apply);
-    } else apply();
-  }
-  loadCornerTweak();
   function drawBg() {
     ctx.fillStyle = '#1a2e1a';
     ctx.fillRect(0, 0, W, H);
