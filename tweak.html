@@ -178,19 +178,9 @@
     const topY = groundY - ratio*dh;      // 贴图底部贴地（不浮空，同游戏）
     // 蓝线（固定地块菱形，不随 corner）
     drawDiamond(c, cx, groundY, tw, th, 0, '#00e5ff', [8,5], 3);
-    // 贴图（透视变换：corner 调下角，与游戏 v76 一致）
-    if (img._corners) {
-      const cc = { x: cx, y: groundY - th };   // 地块中心
-      drawPerspective(c, img, img._corners, {
-        U: { x: cc.x, y: cc.y - th },
-        R: { x: cc.x + tw, y: cc.y },
-        D: { x: cc.x, y: groundY + corner },   // 下角随 corner（透视角度）
-        L: { x: cc.x - tw, y: cc.y },
-      }, 16);
-    } else {
-      c.drawImage(img, cx-dw/2, topY, dw, dh);
-    }
-    // 黄线（贴图底部 V 形夹角，随 corner 显示当前透视角度）
+    // 贴图（建筑站立绘制，游戏源码：底边贴合，不压平贴地）
+    c.drawImage(img, cx-dw/2, topY, dw, dh);
+    // 黄线（贴图底部 V 形夹角，随 corner 显示透视角度）
     c.save(); c.setLineDash([5,3]); c.strokeStyle='#ffd23f'; c.lineWidth=3; c.lineJoin='round';
     c.beginPath();
     c.moveTo(cx-dw/2, groundY);
