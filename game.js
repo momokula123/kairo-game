@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 64;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 65;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1816,8 +1816,12 @@
               // 城堡/农场（多线条复杂轮廓 / 横长地块）按自然比例；宽幅贴图（AI 生成的 16:9 等）保持比例防畸变；其余全部菱形贴合（黄线紧贴蓝线）
               if (b.type === 'castle' || b.type === 'farm') {
                 dh = Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)));
-              } else if (img.naturalHeight && img.naturalWidth && (img.naturalWidth / img.naturalHeight) > 1.35) {
-                dh = Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)));
+              } else if (img.naturalHeight && img.naturalWidth) {
+                const wr = img.naturalWidth / img.naturalHeight;
+                // 宽幅或高瘦贴图都按自然比例（防 AI 宽/高图压扁畸变）
+                dh = (wr > 1.35 || wr < 1 / 1.35)
+                  ? Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)))
+                  : dw;
               } else {
                 dh = dw;
               }

@@ -72,6 +72,12 @@
     market:    { name: '集市',   icon: '市', desc: '人流汇聚，收入更高', baseCost: 260, income: 14, maxLevel: 5, w: 96, h: 72, image: 'market', effect: 'market' },
     shrine:    { name: '神社',   icon: '社', desc: '祈祷驱散疲惫，提升心情', baseCost: 240, income: 11, maxLevel: 5, w: 96, h: 72, image: 'shrine', effect: 'shrine' },
     library:   { name: '图书馆', icon: '书', desc: '研读典籍，冒险者经验增长', baseCost: 300, income: 13, maxLevel: 5, w: 96, h: 72, image: 'library', effect: 'library' },
+    barracks:  { name: '兵营', icon: '兵', desc: '红警式兵营，训练士兵提升战力', baseCost: 320, income: 14, maxLevel: 5, w: 96, h: 72, image: 'barracks', effect: 'barracks' },
+    powerplant:{ name: '发电厂', icon: '电', desc: '红警式发电厂，全村运转更高效', baseCost: 340, income: 15, maxLevel: 5, w: 96, h: 72, image: 'powerplant', effect: 'powerplant' },
+    refinery:  { name: '精炼厂', icon: '矿', desc: '红警式矿石精炼厂，金币产出更高', baseCost: 420, income: 18, maxLevel: 5, w: 96, h: 72, image: 'refinery', effect: 'refinery' },
+    windmill:  { name: '风车', icon: '风', desc: '风车磨坊，收入稳定', baseCost: 220, income: 10, maxLevel: 5, w: 96, h: 72, image: 'windmill', effect: 'windmill' },
+    church:    { name: '教堂', icon: '堂', desc: '祈祷净化，提升心情与好感', baseCost: 280, income: 12, maxLevel: 5, w: 96, h: 72, image: 'church', effect: 'church' },
+    tower:     { name: '瞭望塔', icon: '塔', desc: '放哨瞭望，防御与视野提升', baseCost: 250, income: 11, maxLevel: 5, w: 96, h: 72, image: 'tower', effect: 'tower' },
   };
 
   /* ============ 种子 / 作物定义（种 → 收 → 卖）============ */
@@ -130,7 +136,7 @@
   };
 
   /* 设施效果图标（冒险者消费气泡用） */
-  const BUILD_ICONS = { inn: '💤', tavern: '🍺', weapon: '⚔️', shop: '🧺', bakery: '🥖', magicshop: '🔮', training: '🥋', clinic: '💊', castle: '🏰', farm: '🚜', seedshop: '🌰', forge: '铁', market: '市', shrine: '社', library: '书' };
+  const BUILD_ICONS = { inn: '💤', tavern: '🍺', weapon: '⚔️', shop: '🧺', bakery: '🥖', magicshop: '🔮', training: '🥋', clinic: '💊', castle: '🏰', farm: '🚜', seedshop: '🌰', forge: '铁', market: '市', shrine: '社', library: '书', barracks: '兵', powerplant: '电', refinery: '矿', windmill: '风', church: '堂', tower: '塔' };
 
   /* 装饰渲染尺寸（深排渲染用） */
   const DECOR_SIZE = {

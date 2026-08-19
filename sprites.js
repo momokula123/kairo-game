@@ -64,6 +64,12 @@
     market: 'assets/market.png?v=2',
     shrine: 'assets/shrine.png?v=2',
     library: 'assets/library.png?v=2',
+    barracks: 'assets/barracks.png?v=1',
+    powerplant: 'assets/powerplant.png?v=1',
+    refinery: 'assets/refinery.png?v=1',
+    windmill: 'assets/windmill.png?v=1',
+    church: 'assets/church.png?v=1',
+    tower: 'assets/tower.png?v=1',
   };
 
   // 需要"底部像素贴地"数据的贴图 key（人物/建筑/装饰/怪物通用）
@@ -71,18 +77,20 @@
     'inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle',
     'farm', 'seedshop',
     'forge', 'market', 'shrine', 'library',
+    'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower',
     'fence_a', 'fence_b',
     'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
     'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well',
     'slime', 'goblin', 'bat', 'slimeking',
   ]);
   // 需要"像素蒙版遮挡"的贴图 key（建筑，正方形蒙版）
-  const MASK_KEYS = new Set(['inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle', 'farm', 'seedshop', 'forge', 'market', 'shrine', 'library']);
+  const MASK_KEYS = new Set(['inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle', 'farm', 'seedshop', 'forge', 'market', 'shrine', 'library', 'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower']);
   // 需要"形状蒙版阴影"的贴图 key（建筑 + 装饰 + 人物 + 怪物 → 统一阴影生成）
   const SHADOW_KEYS = new Set([
     'inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle',
     'farm', 'seedshop',
     'forge', 'market', 'shrine', 'library',
+    'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower',
     'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well', 'fence_a', 'fence_b',
     'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
     'slime', 'goblin', 'bat', 'slimeking',
@@ -315,6 +323,7 @@
           inn: 1, tavern: 1, weapon: 1, shop: 1, bakery: 1, magicshop: 1, training: 1, clinic: 1, castle: 1,
           farm: 1, seedshop: 1,   // 建筑（补齐管线）
           forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（不收缩）
+          barracks: 1, powerplant: 1, refinery: 1, windmill: 1, church: 1, tower: 1,
           tree: 0.03, fruittree: 0.03, fountain: 0.03, chest: 0.03, lamp: 0.03, flag: 0.03, well: 0.03, fence_a: 0.03, fence_b: 0.03,
           ck_knight: 0.03, ck_mage: 0.03, ck_priest: 0.03, ck_archer: 0.03,
           ck_monk: 0.03, ck_rogue: 0.03, ck_valkyrie: 0.03, ck_paladin: 0.03,
@@ -325,6 +334,7 @@
           inn: 1, tavern: 1, weapon: 1, shop: 1, bakery: 1, magicshop: 1, training: 1, clinic: 1, castle: 1,
           farm: 1, seedshop: 1,   // 建筑（补齐管线）
           forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（还原）
+          barracks: 1, powerplant: 1, refinery: 1, windmill: 1, church: 1, tower: 1,
           tree: 0.5, fruittree: 0.5, fountain: 0.5, chest: 0.5, lamp: 0.5, flag: 0.5, well: 0.5, fence_a: 0.5, fence_b: 0.5,
           ck_knight: 0.5, ck_mage: 0.5, ck_priest: 0.5, ck_archer: 0.5,
           ck_monk: 0.5, ck_rogue: 0.5, ck_valkyrie: 0.5, ck_paladin: 0.5,
@@ -409,7 +419,7 @@
     // 新建筑按旅店做法：阴影条带复用旅店的（方形小屋底部轮廓近似，尺寸同 2x2 / 84）
     const innStrips = window.SHADOW_STRIPS['inn|0|0|84'];
     if (innStrips) {
-      for (const nb of ['forge', 'market', 'shrine', 'library']) {
+      for (const nb of ['forge', 'market', 'shrine', 'library', 'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower']) {
         SpriteKit._shadowCache.set(nb + '|0|0|84', innStrips);
       }
     }
