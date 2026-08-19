@@ -91,6 +91,10 @@
     windmill:  { name: '风车', icon: '风', desc: '风车磨坊，收入稳定', baseCost: 220, income: 10, maxLevel: 5, w: 96, h: 72, image: 'windmill', effect: 'windmill' },
     church:    { name: '教堂', icon: '堂', desc: '祈祷净化，提升心情与好感', baseCost: 280, income: 12, maxLevel: 5, w: 96, h: 72, image: 'church', effect: 'church' },
     tower:     { name: '瞭望塔', icon: '塔', desc: '放哨瞭望，防御与视野提升', baseCost: 250, income: 11, maxLevel: 5, w: 96, h: 72, image: 'tower', effect: 'tower' },
+    colosseum: { name: '角斗场', icon: '斗', desc: '罗马式角斗场，勇者试炼之地', baseCost: 900, income: 32, maxLevel: 3, w: 150, h: 120, image: 'colosseum', size: 2, effect: 'colosseum' },
+    empire:    { name: '帝国大厦', icon: '帝', desc: '摩天巨塔，全村收入大增', baseCost: 1500, income: 50, maxLevel: 3, w: 96, h: 150, image: 'empire', size: 2, effect: 'empire' },
+    lighthouse:{ name: '灯塔', icon: '灯', desc: '指引冒险者归乡，稳定收入', baseCost: 300, income: 13, maxLevel: 5, w: 96, h: 96, image: 'lighthouse', size: 1, effect: 'lighthouse' },
+    statue:    { name: '自由女神像', icon: '神', desc: '地标雕像，全村士气提升', baseCost: 1200, income: 40, maxLevel: 3, w: 96, h: 140, image: 'statue', size: 2, effect: 'statue' },
   };
 
   /* ============ 种子 / 作物定义（种 → 收 → 卖）============ */
