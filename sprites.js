@@ -60,10 +60,10 @@
     castle: 'assets/castle.png',
     farm: 'assets/farm.png?v=5',
     seedshop: 'assets/seedshop.png?v=2',
-    forge: 'assets/forge.png?v=1',
-    market: 'assets/market.png?v=1',
-    shrine: 'assets/shrine.png?v=1',
-    library: 'assets/library.png?v=1',
+    forge: 'assets/forge.png?v=2',
+    market: 'assets/market.png?v=2',
+    shrine: 'assets/shrine.png?v=2',
+    library: 'assets/library.png?v=2',
   };
 
   // 需要"底部像素贴地"数据的贴图 key（人物/建筑/装饰/怪物通用）
