@@ -31,17 +31,38 @@
   const KEY = 'cornerTweak';
   if (!D) { document.getElementById('list').innerHTML = '<p style="color:#ff6b6b">content.js 未加载（请通过 localhost 访问）</p>'; return; }
   const list = document.getElementById('list');
-  // 可视化预览：菱形（蓝线）+ 黄线 V 形，下角随 corner 偏移（正=更深）
-  function drawPreview(cv, corner){
+  // 预加载每个建筑的真实贴图（assets/xxx.png），用于可视化预览
+  const IMGS = {};
+  function loadImgs(D, cb){
+    const keys = Object.keys(D); let n = 0;
+    keys.forEach(k => {
+      const img = new Image();
+      img.onload = () => { IMGS[k] = img; if (++n === keys.length) cb(); };
+      img.onerror = () => { if (++n === keys.length) cb(); };
+      img.src = 'assets/' + (D[k].image || k) + '.png';
+    });
+  }
+  // 可视化预览：真实建筑贴图 + 菱形（蓝线）+ 黄线 V 形，下角随 corner 偏移（正=更深）
+  function drawPreview(cv, corner, k){
     const c = cv.getContext('2d');
     const w = cv.width, h = cv.height;
     c.clearRect(0,0,w,h);
-    const cx = w/2, cy = h-8;
-    const half = 26, base = 12;
-    const down = base + corner * 0.5;
-    c.save(); c.setLineDash([5,3]); c.strokeStyle='#00e5ff'; c.lineWidth=2; c.lineJoin='round';
+    const img = IMGS[k];
+    if (img && img.width > 0) {
+      const s = Math.min((w - 8) / img.width, (h - 14) / img.height);
+      const dw2 = img.width * s, dh2 = img.height * s;
+      c.drawImage(img, (w - dw2) / 2, 1, dw2, dh2);
+    } else {
+      c.fillStyle = '#2a3550'; c.fillRect(2, 1, w - 4, h - 14);
+      c.fillStyle = '#7a88a0'; c.font = '10px system-ui'; c.textAlign = 'center';
+      c.fillText('贴图加载中…', w / 2, h / 2);
+    }
+    const cx = w / 2, cy = h - 2;
+    const half = 20, base = 5;
+    const down = base + corner * 0.4;
+    c.save(); c.setLineDash([4,3]); c.strokeStyle='#00e5ff'; c.lineWidth=1.5; c.lineJoin='round';
     c.beginPath(); c.moveTo(cx-half, cy-base); c.lineTo(cx, cy); c.lineTo(cx+half, cy-base); c.stroke(); c.restore();
-    c.save(); c.setLineDash([4,3]); c.strokeStyle='#ffd23f'; c.lineWidth=2.5; c.lineJoin='round';
+    c.save(); c.setLineDash([3,2]); c.strokeStyle='#ffd23f'; c.lineWidth=2; c.lineJoin='round';
     c.beginPath(); c.moveTo(cx-half, cy-base); c.lineTo(cx, cy-base+down); c.lineTo(cx+half, cy-base); c.stroke(); c.restore();
   }
   for (const k in D) {
@@ -49,16 +70,18 @@
     const row = document.createElement('div'); row.className='row';
     row.innerHTML = '<canvas width="90" height="58"></canvas><label>'+d.icon+' '+d.name+'</label><input type="range" min="-40" max="40" step="1" value="0" data-k="'+k+'"><span class="val">0</span>';
     list.appendChild(row);
-    drawPreview(row.querySelector('canvas'), 0);
+    drawPreview(row.querySelector('canvas'), 0, k);
   }
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e) {}
   document.querySelectorAll('input[data-k]').forEach(function(i){
     const row = i.parentNode;
     if (saved[i.dataset.k] != null) { i.value = saved[i.dataset.k]; i.parentNode.querySelector('.val').textContent = saved[i.dataset.k]; }
-    drawPreview(row.querySelector('canvas'), parseInt(i.value,10)||0);
-    i.addEventListener('input', function(){ i.parentNode.querySelector('.val').textContent = i.value; drawPreview(i.parentNode.querySelector('canvas'), parseInt(i.value,10)||0); });
+    drawPreview(row.querySelector('canvas'), parseInt(i.value,10)||0, i.dataset.k);
+    i.addEventListener('input', function(){ i.parentNode.querySelector('.val').textContent = i.value; drawPreview(i.parentNode.querySelector('canvas'), parseInt(i.value,10)||0, i.dataset.k); });
   });
+  // 贴图加载完成后重绘所有预览（贴图 + 线）
+  loadImgs(D, () => { document.querySelectorAll('input[data-k]').forEach(i => drawPreview(i.parentNode.querySelector('canvas'), parseInt(i.value,10)||0, i.dataset.k)); });
   window.save = function(){
     const t = {};
     document.querySelectorAll('input[data-k]').forEach(function(i){ const v = parseInt(i.value,10); if (v) t[i.dataset.k]=v; });
