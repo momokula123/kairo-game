@@ -136,14 +136,14 @@
     const topY = groundY - ratio*dh;      // 贴图底部贴地（不浮空，同游戏）
     // 蓝线（地块菱形）
     drawDiamond(c, cx, groundY, tw, th, corner, '#00e5ff', [8,5], 3);
-    // 贴图（按黄线菱形夹角 V 形裁剪渲染——图片实际渲染随夹角变化，与游戏一致）
+    // 贴图（底部按黄线夹角裁成 V 形——图片透视随夹角变化，与游戏一致）
     c.save();
     c.beginPath();
-    c.moveTo(cx-tw, groundY-th);            // 左角
-    c.lineTo(cx, groundY+corner);           // 下角尖（corner 夹角）
-    c.lineTo(cx+tw, groundY-th);            // 右角
-    c.lineTo(cx+dw/2+6, topY-6);            // 右上（覆盖贴图）
-    c.lineTo(cx-dw/2-6, topY-6);            // 左上
+    c.moveTo(cx-dw/2, groundY);             // 贴图底部左端
+    c.lineTo(cx, groundY+corner);           // V 形下角（corner 夹角）
+    c.lineTo(cx+dw/2, groundY);             // 贴图底部右端
+    c.lineTo(cx+dw/2, topY);                // 右上
+    c.lineTo(cx-dw/2, topY);                // 左上
     c.closePath();
     c.clip();
     c.drawImage(img, cx-dw/2, topY, dw, dh);
