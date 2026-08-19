@@ -4,91 +4,157 @@
 <meta charset="UTF-8">
 <title>建筑下角微调</title>
 <style>
-  body{background:#1a2332;color:#ddd;font:14px/1.7 system-ui;margin:20px;max-width:760px}
-  h1{color:#ffd23f} .hint{color:#9ab}
-  .row{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #2a3550}
-  .row canvas{background:#0f1620;border:1px solid #2a3550;border-radius:6px}
-  .row label{width:120px;color:#fff}
-  .row input[type=range]{flex:1}
-  .row .val{width:46px;text-align:right;color:#ffd23f;font:bold 13px monospace}
-  .btn{padding:10px 22px;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin:12px 6px 0 0}
-  .save{background:#ffd23f;color:#1a2332} .reset{background:#4a5a7a;color:#fff}
+  body{background:#111a26;color:#ddd;font:14px/1.6 system-ui;margin:20px}
+  h1{color:#ffd23f;margin-bottom:4px}
+  .hint{color:#9ab;margin-top:0}
+  .grid{display:flex;flex-wrap:wrap;gap:16px}
+  .card{background:#182434;border:1px solid #2a3550;border-radius:12px;padding:12px;width:264px}
+  .card canvas{width:100%;height:196px;background:#2a7a3d;border-radius:8px;display:block}
+  .card .name{color:#fff;font-weight:600;margin:8px 0 6px}
+  .card .ctrl{display:flex;align-items:center;gap:8px}
+  .card input[type=range]{flex:1}
+  .card .val{width:40px;text-align:right;color:#ffd23f;font:bold 13px monospace}
+  .card .key{color:#5a6a80;font-size:11px;margin-left:6px}
+  .toolbar{margin:16px 0}
+  .btn{padding:10px 24px;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-right:8px}
+  .save{background:#ffd23f;color:#111a26} .reset{background:#4a5a7a;color:#fff}
   .note{font-size:12px;color:#7a88a0}
-  .pill{display:inline-block;background:#00e5ff;color:#111;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:6px}
 </style>
 </head>
 <body>
 <h1>&#127961; 建筑下角角度微调</h1>
-<p class="hint">拖动滑杆调整每个建筑底面菱形<b>最下面这个角</b>的深浅：正=下角尖更低（V 形更深），负=更浅。保存后回游戏页面<b>强刷（Ctrl+Shift+R）</b>生效。</p>
-<div id="list"></div>
-<button class="btn save" onclick="save()">保存</button>
-<button class="btn reset" onclick="resetAll()">全部重置</button>
-<p class="note">配置保存在浏览器 localStorage（cornerTweak），仅本机生效。需通过 http://localhost:8090/tweak.html 访问。</p>
+<p class="hint">每张卡片 = 一栋建筑的实时场景预览（草地网格 + 菱形地块 + 真实贴图）。拖动滑杆微调<b>最下面这个角</b>（正=下角更低/更深，负=更浅）。保存后回游戏<b>强刷（Ctrl+Shift+R）</b>生效。</p>
+<div class="toolbar">
+  <button class="btn save" onclick="save()">保存</button>
+  <button class="btn reset" onclick="resetAll()">全部重置</button>
+</div>
+<div class="grid" id="grid"></div>
+<p class="note">配置保存在浏览器 localStorage（cornerTweak），仅本机生效。请通过 http://localhost:8090/tweak.html 访问。</p>
 <script src="content.js"></script>
 <script>
 (function(){
   const D = window.Content && window.Content.BUILD_DEFS;
   const KEY = 'cornerTweak';
-  if (!D) { document.getElementById('list').innerHTML = '<p style="color:#ff6b6b">content.js 未加载（请通过 localhost 访问）</p>'; return; }
-  const list = document.getElementById('list');
-  // 预加载每个建筑的真实贴图（assets/xxx.png），用于可视化预览
+  if (!D) { document.getElementById('grid').innerHTML = '<p style="color:#ff6b6b">content.js 未加载（请通过 localhost 访问）</p>'; return; }
+  const TILE_W=84, TILE_H=42;
   const IMGS = {};
-  function loadImgs(D, cb){
+  // 加载贴图 + 计算底部轮廓（滤噪点，同游戏 computeBottom）
+  function loadImgs(cb){
     const keys = Object.keys(D); let n = 0;
     keys.forEach(k => {
       const img = new Image();
-      img.onload = () => { IMGS[k] = img; if (++n === keys.length) cb(); };
-      img.onerror = () => { if (++n === keys.length) cb(); };
-      img.src = 'assets/' + (D[k].image || k) + '.png';
+      img.onload = () => {
+        const ow=img.naturalWidth, oh=img.naturalHeight;
+        try {
+          const oc=document.createElement('canvas'); oc.width=ow; oc.height=oh;
+          const octx=oc.getContext('2d',{willReadFrequently:true});
+          octx.drawImage(img,0,0);
+          const d=octx.getImageData(0,0,ow,oh).data;
+          const prof=new Array(ow); const bottoms=[];
+          for(let x=0;x<ow;x++){let b=-1;
+            for(let y=oh-1;y>=0;y--){
+              if(d[(y*ow+x)*4+3]>8){
+                const up=y>0&&d[((y-1)*ow+x)*4+3]>8, dn=y<oh-1&&d[((y+1)*ow+x)*4+3]>8;
+                const lf=x>0&&d[(y*ow+x-1)*4+3]>8, rt=x<ow-1&&d[(y*ow+x+1)*4+3]>8;
+                if(up||dn||lf||rt){b=y;break}
+              }
+            }
+            prof[x]=b<0?-1:b/oh;
+            if(b>=0)bottoms.push(b/oh);
+          }
+          bottoms.sort((a,b)=>a-b);
+          const ratio=bottoms.length?bottoms[Math.floor(bottoms.length*0.95)]:1;
+          let pMin=null,pMax=null;
+          for(let x=0;x<ow;x++){if(prof[x]<0)continue;const f=x/ow;if(pMin==null||f<pMin)pMin=f;if(pMax==null||f>pMax)pMax=f;}
+          img._bp={prof,pMin:Math.max(0,pMin),pMax:Math.min(1,pMax),ratio};
+        } catch(e){ img._bp=null; }
+        IMGS[k]=img;
+        if(++n===keys.length)cb();
+      };
+      img.onerror = () => { if(++n===keys.length)cb(); };
+      img.src='assets/'+(D[k].image||k)+'.png';
     });
   }
-  // 可视化预览：真实建筑贴图 + 菱形（蓝线）+ 黄线 V 形，下角随 corner 偏移（正=更深）
-  function drawPreview(cv, corner, k){
-    const c = cv.getContext('2d');
-    const w = cv.width, h = cv.height;
+  function pathDiamond(c,px,py,tw,th){
+    c.beginPath(); c.moveTo(px,py); c.lineTo(px+tw/2,py+th/2); c.lineTo(px,py+th); c.lineTo(px-tw/2,py+th/2); c.closePath();
+  }
+  // 场景绘制：草地网格 + 菱形地块 + 贴图（底边贴合）+ 黄线（下角随 corner）
+  function drawScene(cv,k,corner){
+    const c=cv.getContext('2d'); const w=cv.width,h=cv.height;
     c.clearRect(0,0,w,h);
-    const img = IMGS[k];
-    if (img && img.width > 0) {
-      const s = Math.min((w - 8) / img.width, (h - 14) / img.height);
-      const dw2 = img.width * s, dh2 = img.height * s;
-      c.drawImage(img, (w - dw2) / 2, 1, dw2, dh2);
-    } else {
-      c.fillStyle = '#2a3550'; c.fillRect(2, 1, w - 4, h - 14);
-      c.fillStyle = '#7a88a0'; c.font = '10px system-ui'; c.textAlign = 'center';
-      c.fillText('贴图加载中…', w / 2, h / 2);
+    // 草地背景 + 菱形网格
+    c.fillStyle='#2a7a3d'; c.fillRect(0,0,w,h);
+    const cx=w/2, gy=h-24, sc=24/TILE_W;
+    const tw=TILE_W*sc, th=TILE_H*sc;
+    c.strokeStyle='rgba(0,0,0,0.12)'; c.lineWidth=1;
+    for(let gx=-3;gx<=4;gx++)for(let gy=-3;gy<=4;gy++){
+      const px=cx+(gx-gy)*tw/2, py=h-10+(gx+gy)*th/2;
+      pathDiamond(c,px,py,tw,th); c.stroke();
     }
-    const cx = w / 2, cy = h - 2;
-    const half = 20, base = 5;
-    const down = base + corner * 0.4;
-    c.save(); c.setLineDash([4,3]); c.strokeStyle='#00e5ff'; c.lineWidth=1.5; c.lineJoin='round';
-    c.beginPath(); c.moveTo(cx-half, cy-base); c.lineTo(cx, cy); c.lineTo(cx+half, cy-base); c.stroke(); c.restore();
-    c.save(); c.setLineDash([3,2]); c.strokeStyle='#ffd23f'; c.lineWidth=2; c.lineJoin='round';
-    c.beginPath(); c.moveTo(cx-half, cy-base); c.lineTo(cx, cy-base+down); c.lineTo(cx+half, cy-base); c.stroke(); c.restore();
+    const img=IMGS[k];
+    if(!img||!img.width){ c.fillStyle='#7a88a0'; c.font='12px system-ui'; c.textAlign='center'; c.fillText('贴图加载中…',w/2,h/2); return; }
+    const ow=img.naturalWidth, oh=img.naturalHeight;
+    const bp=img._bp;
+    // 底边贴合（同游戏）：底边两端对齐菱形左右角
+    let dw=2*tw, dh=dw;
+    if(bp && bp.pMax>bp.pMin){
+      dw=Math.round(160*((2*TILE_W)/((bp.pMax-bp.pMin)*160)))*sc;
+      dh=Math.max(1,Math.round(dw*oh/ow));
+    }
+    const ratio=bp?bp.ratio:1;
+    const topY=gy-th-ratio*dh;
+    // 菱形地块（蓝虚线）
+    c.save(); c.setLineDash([6,4]); c.strokeStyle='#00e5ff'; c.lineWidth=2; c.lineJoin='round';
+    pathDiamond(c,cx,gy,2*tw,2*th); c.stroke(); c.restore();
+    // 贴图
+    c.save(); c.drawImage(img,cx-dw/2,topY,dw,dh); c.restore();
+    // 黄线（底部轮廓 + 下角微调）
+    if(bp && bp.prof){
+      const prof=bp.prof;
+      c.save(); c.setLineDash([5,3]); c.strokeStyle='#ffd23f'; c.lineWidth=2.5; c.lineJoin='round';
+      c.beginPath(); let st=false;
+      for(let x=0;x<ow;x++){
+        const r=prof[x]; if(r<0)continue;
+        const sx=cx-dw/2+(x/ow)*dw;
+        const v=Math.max(0,1-Math.abs((x/ow)-0.5)*2);
+        const sy=topY+Math.min(r,ratio)*dh + v*corner;
+        if(!st){c.moveTo(sx,sy);st=true}else c.lineTo(sx,sy);
+      }
+      c.stroke(); c.restore();
+    }
   }
-  for (const k in D) {
-    const d = D[k];
-    const row = document.createElement('div'); row.className='row';
-    row.innerHTML = '<canvas width="90" height="58"></canvas><label>'+d.icon+' '+d.name+'</label><input type="range" min="-40" max="40" step="1" value="0" data-k="'+k+'"><span class="val">0</span>';
-    list.appendChild(row);
-    drawPreview(row.querySelector('canvas'), 0, k);
+  // 生成卡片
+  const grid=document.getElementById('grid');
+  for(const k in D){
+    const d=D[k];
+    const card=document.createElement('div'); card.className='card';
+    card.innerHTML='<canvas width="264" height="196"></canvas>'
+      +'<div class="name">'+d.icon+' '+d.name+'<span class="key">'+k+'</span></div>'
+      +'<div class="ctrl"><input type="range" min="-40" max="40" step="1" value="0" data-k="'+k+'"><span class="val">0</span></div>';
+    grid.appendChild(card);
   }
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e) {}
+  let saved={};
+  try{saved=JSON.parse(localStorage.getItem(KEY)||'{}');}catch(e){}
+  function refreshAll(){
+    document.querySelectorAll('input[data-k]').forEach(i=>{
+      drawScene(i.parentNode.parentNode.querySelector('canvas'), i.dataset.k, parseInt(i.value,10)||0);
+    });
+  }
   document.querySelectorAll('input[data-k]').forEach(function(i){
-    const row = i.parentNode;
-    if (saved[i.dataset.k] != null) { i.value = saved[i.dataset.k]; i.parentNode.querySelector('.val').textContent = saved[i.dataset.k]; }
-    drawPreview(row.querySelector('canvas'), parseInt(i.value,10)||0, i.dataset.k);
-    i.addEventListener('input', function(){ i.parentNode.querySelector('.val').textContent = i.value; drawPreview(i.parentNode.querySelector('canvas'), parseInt(i.value,10)||0, i.dataset.k); });
+    if(saved[i.dataset.k]!=null){ i.value=saved[i.dataset.k]; i.parentNode.querySelector('.val').textContent=saved[i.dataset.k]; }
+    i.addEventListener('input',function(){
+      i.parentNode.querySelector('.val').textContent=i.value;
+      drawScene(i.parentNode.parentNode.querySelector('canvas'), i.dataset.k, parseInt(i.value,10)||0);
+    });
   });
-  // 贴图加载完成后重绘所有预览（贴图 + 线）
-  loadImgs(D, () => { document.querySelectorAll('input[data-k]').forEach(i => drawPreview(i.parentNode.querySelector('canvas'), parseInt(i.value,10)||0, i.dataset.k)); });
-  window.save = function(){
-    const t = {};
-    document.querySelectorAll('input[data-k]').forEach(function(i){ const v = parseInt(i.value,10); if (v) t[i.dataset.k]=v; });
-    localStorage.setItem(KEY, JSON.stringify(t));
+  loadImgs(refreshAll);
+  window.save=function(){
+    const t={};
+    document.querySelectorAll('input[data-k]').forEach(function(i){const v=parseInt(i.value,10);if(v)t[i.dataset.k]=v;});
+    localStorage.setItem(KEY,JSON.stringify(t));
     alert('已保存。回游戏页面强刷（Ctrl+Shift+R）查看效果。');
   };
-  window.resetAll = function(){ localStorage.removeItem(KEY); location.reload(); };
+  window.resetAll=function(){localStorage.removeItem(KEY);location.reload();};
 })();
 </script>
 </body>
