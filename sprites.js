@@ -74,6 +74,25 @@
     empire: 'assets/empire.png?v=1',
     lighthouse: 'assets/lighthouse.png?v=1',
     statue: 'assets/statue.png?v=1',
+    pyramid: 'assets/pyramid.png?v=1',
+    sphinx: 'assets/sphinx.png?v=1',
+    peach_garden: 'assets/peach_garden.png?v=1',
+    chibi: 'assets/chibi.png?v=1',
+    pagoda: 'assets/pagoda.png?v=1',
+    dojo: 'assets/dojo.png?v=1',
+    observatory: 'assets/observatory.png?v=1',
+    bathhouse: 'assets/bathhouse.png?v=1',
+    bank: 'assets/bank.png?v=1',
+    stable: 'assets/stable.png?v=1',
+    granary: 'assets/granary.png?v=1',
+    temple: 'assets/temple.png?v=1',
+    china_tower: 'assets/china_tower.png?v=1',
+    guard_post: 'assets/guard_post.png?v=1',
+    obelisk: 'assets/obelisk.png?v=1',
+    dungeon: 'assets/dungeon.png?v=1',
+    mage_tower: 'assets/mage_tower.png?v=1',
+    greenhouse: 'assets/greenhouse.png?v=1',
+    training_ground: 'assets/training_ground.png?v=1',
   };
 
   // 需要"底部像素贴地"数据的贴图 key（人物/建筑/装饰/怪物通用）
@@ -83,13 +102,14 @@
     'forge', 'market', 'shrine', 'library',
     'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower',
     'colosseum', 'empire', 'lighthouse', 'statue',
+    'pyramid', 'sphinx', 'peach_garden', 'chibi', 'pagoda', 'dojo', 'observatory', 'bathhouse', 'bank', 'stable', 'granary', 'temple', 'china_tower', 'guard_post', 'obelisk', 'dungeon', 'mage_tower', 'greenhouse', 'training_ground',
     'fence_a', 'fence_b',
     'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
     'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well',
     'slime', 'goblin', 'bat', 'slimeking',
   ]);
   // 需要"像素蒙版遮挡"的贴图 key（建筑，正方形蒙版）
-  const MASK_KEYS = new Set(['inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle', 'farm', 'seedshop', 'forge', 'market', 'shrine', 'library', 'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower', 'colosseum', 'empire', 'lighthouse', 'statue']);
+  const MASK_KEYS = new Set(['inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle', 'farm', 'seedshop', 'forge', 'market', 'shrine', 'library', 'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower', 'colosseum', 'empire', 'lighthouse', 'statue', 'pyramid', 'sphinx', 'peach_garden', 'chibi', 'pagoda', 'dojo', 'observatory', 'bathhouse', 'bank', 'stable', 'granary', 'temple', 'china_tower', 'guard_post', 'obelisk', 'dungeon', 'mage_tower', 'greenhouse', 'training_ground']);
   // 需要"形状蒙版阴影"的贴图 key（建筑 + 装饰 + 人物 + 怪物 → 统一阴影生成）
   const SHADOW_KEYS = new Set([
     'inn', 'tavern', 'weapon', 'shop', 'bakery', 'magicshop', 'training', 'clinic', 'castle',
@@ -97,10 +117,11 @@
     'forge', 'market', 'shrine', 'library',
     'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower',
     'colosseum', 'empire', 'lighthouse', 'statue',
-    'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well', 'fence_a', 'fence_b',
-    'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
-    'slime', 'goblin', 'bat', 'slimeking',
-  ]);
+     'pyramid', 'sphinx', 'peach_garden', 'chibi', 'pagoda', 'dojo', 'observatory', 'bathhouse', 'bank', 'stable', 'granary', 'temple', 'china_tower', 'guard_post', 'obelisk', 'dungeon', 'mage_tower', 'greenhouse', 'training_ground',
+     'tree', 'fruittree', 'fountain', 'chest', 'lamp', 'flag', 'well', 'fence_a', 'fence_b',
+     'ck_knight', 'ck_mage', 'ck_priest', 'ck_archer', 'ck_monk', 'ck_rogue', 'ck_valkyrie', 'ck_paladin',
+     'slime', 'goblin', 'bat', 'slimeking',
+    ]);
 
   // 等距瓦片尺寸（与引擎一致：2x2 建筑底面菱形）
   const TILE_W = 84, TILE_H = 42;
@@ -331,6 +352,7 @@
           forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（不收缩）
           barracks: 1, powerplant: 1, refinery: 1, windmill: 1, church: 1, tower: 1,
           colosseum: 1, empire: 1, lighthouse: 1, statue: 1,
+          pyramid: 1, sphinx: 1, peach_garden: 1, chibi: 1, pagoda: 1, dojo: 1, observatory: 1, bathhouse: 1, bank: 1, stable: 1, granary: 1, temple: 1, china_tower: 1, guard_post: 1, obelisk: 1, dungeon: 1, mage_tower: 1, greenhouse: 1, training_ground: 1,
           tree: 0.03, fruittree: 0.03, fountain: 0.03, chest: 0.03, lamp: 0.03, flag: 0.03, well: 0.03, fence_a: 0.03, fence_b: 0.03,
           ck_knight: 0.03, ck_mage: 0.03, ck_priest: 0.03, ck_archer: 0.03,
           ck_monk: 0.03, ck_rogue: 0.03, ck_valkyrie: 0.03, ck_paladin: 0.03,
@@ -343,6 +365,7 @@
           forge: 1, market: 1, shrine: 1, library: 1,   // 新建筑按旅店做法（还原）
           barracks: 1, powerplant: 1, refinery: 1, windmill: 1, church: 1, tower: 1,
           colosseum: 1, empire: 1, lighthouse: 1, statue: 1,
+          pyramid: 1, sphinx: 1, peach_garden: 1, chibi: 1, pagoda: 1, dojo: 1, observatory: 1, bathhouse: 1, bank: 1, stable: 1, granary: 1, temple: 1, china_tower: 1, guard_post: 1, obelisk: 1, dungeon: 1, mage_tower: 1, greenhouse: 1, training_ground: 1,
           tree: 0.5, fruittree: 0.5, fountain: 0.5, chest: 0.5, lamp: 0.5, flag: 0.5, well: 0.5, fence_a: 0.5, fence_b: 0.5,
           ck_knight: 0.5, ck_mage: 0.5, ck_priest: 0.5, ck_archer: 0.5,
           ck_monk: 0.5, ck_rogue: 0.5, ck_valkyrie: 0.5, ck_paladin: 0.5,
