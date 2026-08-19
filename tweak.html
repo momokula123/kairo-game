@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>建筑下角微调</title>
+<style>
+  body{background:#1a2332;color:#ddd;font:14px/1.7 system-ui;margin:20px;max-width:760px}
+  h1{color:#ffd23f} .hint{color:#9ab}
+  .row{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #2a3550}
+  .row label{width:120px;color:#fff}
+  .row input[type=range]{flex:1}
+  .row .val{width:46px;text-align:right;color:#ffd23f;font:bold 13px monospace}
+  .btn{padding:10px 22px;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin:12px 6px 0 0}
+  .save{background:#ffd23f;color:#1a2332} .reset{background:#4a5a7a;color:#fff}
+  .note{font-size:12px;color:#7a88a0}
+  .pill{display:inline-block;background:#00e5ff;color:#111;border-radius:4px;padding:1px 6px;font-size:11px;margin-left:6px}
+</style>
+</head>
+<body>
+<h1>&#127961; 建筑下角角度微调</h1>
+<p class="hint">拖动滑杆调整每个建筑底面菱形<b>最下面这个角</b>的深浅：正=下角尖更低（V 形更深），负=更浅。保存后回游戏页面<b>强刷（Ctrl+Shift+R）</b>生效。</p>
+<div id="list"></div>
+<button class="btn save" onclick="save()">保存</button>
+<button class="btn reset" onclick="resetAll()">全部重置</button>
+<p class="note">配置保存在浏览器 localStorage（cornerTweak），仅本机生效。需通过 http://localhost:8090/tweak.html 访问。</p>
+<script src="content.js"></script>
+<script>
+(function(){
+  const D = window.Content && window.Content.BUILD_DEFS;
+  const KEY = 'cornerTweak';
+  if (!D) { document.getElementById('list').innerHTML = '<p style="color:#ff6b6b">content.js 未加载（请通过 localhost 访问）</p>'; return; }
+  const list = document.getElementById('list');
+  for (const k in D) {
+    const d = D[k];
+    const row = document.createElement('div'); row.className='row';
+    row.innerHTML = '<label>'+d.icon+' '+d.name+'</label><input type="range" min="-40" max="40" step="1" value="0" data-k="'+k+'"><span class="val">0</span><span class="pill">'+k+'</span>';
+    list.appendChild(row);
+  }
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e) {}
+  document.querySelectorAll('input[data-k]').forEach(function(i){
+    if (saved[i.dataset.k] != null) { i.value = saved[i.dataset.k]; i.parentNode.querySelector('.val').textContent = saved[i.dataset.k]; }
+    i.addEventListener('input', function(){ i.parentNode.querySelector('.val').textContent = i.value; });
+  });
+  window.save = function(){
+    const t = {};
+    document.querySelectorAll('input[data-k]').forEach(function(i){ const v = parseInt(i.value,10); if (v) t[i.dataset.k]=v; });
+    localStorage.setItem(KEY, JSON.stringify(t));
+    alert('已保存。回游戏页面强刷（Ctrl+Shift+R）查看效果。');
+  };
+  window.resetAll = function(){ localStorage.removeItem(KEY); location.reload(); };
+})();
+</script>
+</body>
+</html>

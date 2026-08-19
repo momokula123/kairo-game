@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 68;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 69;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1386,6 +1386,15 @@
     const pd = pad == null ? 130 : pad;
     return wx + pd > camera.x && wx - pd < camera.x + W && wy + pd > camera.y && wy - pd < camera.y + H;
   }
+  // 建筑下角微调（tweak.html 设置，localStorage）：{ 建筑key: 下角尖偏移px（正=加深V形，负=变浅） }
+  let _cornerTweak = null;
+  function getCornerTweak() {
+    if (_cornerTweak === null) {
+      try { _cornerTweak = JSON.parse(localStorage.getItem('cornerTweak') || '{}'); }
+      catch (e) { _cornerTweak = {}; }
+    }
+    return _cornerTweak;
+  }
   function drawBg() {
     ctx.fillStyle = '#1a2e1a';
     ctx.fillRect(0, 0, W, H);
@@ -1942,6 +1951,7 @@
           if (S.debugBuildingBase && img && img.width > 0) {
             if (img.bottomProfile) {
               const prof = img.bottomProfile, ow = img.naturalWidth;
+              const corner = getCornerTweak()[b.type] || 0;   // 下角微调（tweak.html）
               ctx.save();
               ctx.setLineDash([8, 5]);
               ctx.strokeStyle = '#ffd23f';
@@ -1954,7 +1964,9 @@
                 const r = prof[x];
                 if (r < 0) continue;
                 const sx = p.x - dw / 2 + (x / ow) * dw;   // 底边贴合变换（两端对齐菱形左右角）
-                const sy = topY + Math.min(r, img.bottomRatio || 1) * dh;
+                const cxr = (x / ow) - 0.5;
+                const v = Math.max(0, 1 - Math.abs(cxr) * 2);   // 中心=1 两端=0
+                const sy = topY + Math.min(r, img.bottomRatio || 1) * dh + v * corner;
                 if (!started) { ctx.moveTo(sx, sy); started = true; }
                 else ctx.lineTo(sx, sy);
               }
