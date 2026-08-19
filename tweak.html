@@ -170,11 +170,12 @@
     const topY = groundY - ratio*dh;      // 贴图底部贴地（不浮空，同游戏）
     // 蓝线（固定地块菱形，不随 corner）
     drawDiamond(c, cx, groundY, tw, th, 0, '#00e5ff', [8,5], 3);
-    // 贴图：corner=0 站立 drawImage；corner≠0 站立+底部 V 形夹角透视（drawBuildingV）
+    // 贴图：corner=0 站立 drawImage；corner≠0 站立+底部 V 形夹角透视（drawBuildingV）；dy 上下平移
+    const dyV = (dyCache && dyCache[current]) || 0;
     if (corner !== 0) {
-      drawBuildingV(c, img, cx, topY, groundY, dw, corner, 16);
+      drawBuildingV(c, img, cx, topY + dyV, groundY + dyV, dw, corner, 16);
     } else {
-      c.drawImage(img, cx-dw/2, topY, dw, dh);
+      c.drawImage(img, cx-dw/2, topY + dyV, dw, dh);
     }
     // 黄线：corner≠0 时 = 底部 V 形两条斜边（下角 groundY+corner，夹角随 corner）；corner=0 沿贴图底部两条底边轮廓
     c.save(); c.setLineDash([5,3]); c.strokeStyle='#ffd23f'; c.lineWidth=2.5; c.lineJoin='round';
@@ -209,6 +210,7 @@
     menu.appendChild(b);
   });
   let saved = {};
+  let dyCache = {};
   // 基础值来自 config.ini（持久化文件），localStorage 插件配置（kairo_plugin）覆盖
   function loadSaved(cb){
     const apply = (base) => {
@@ -216,7 +218,7 @@
       try {
         const plug = JSON.parse(localStorage.getItem('kairo_plugin') || '{}');
         if (plug && plug.data && plug.data.building_perspective)
-          for (const k in plug.data.building_perspective) saved[k] = plug.data.building_perspective[k].corner || 0;
+          for (const k in plug.data.building_perspective) { saved[k] = plug.data.building_perspective[k].corner || 0; dyCache[k] = plug.data.building_perspective[k].dy || 0; }
         const ls = JSON.parse(localStorage.getItem('cornerTweak') || '{}');   // 兼容旧 key
         for (const k in ls) if (saved[k] == null) saved[k] = ls[k];
       } catch(e){}
@@ -262,15 +264,15 @@
     saved = t;
     // 1) 写入插件配置 localStorage['kairo_plugin'] → 游戏插件入口每0.5s检测版本戳更新 → 渲染响应
     const plug = { v: Date.now(), data: { building_perspective: {} } };
-    for (const k in t) plug.data.building_perspective[k] = { corner: t[k] };
+    for (const k in t) plug.data.building_perspective[k] = { corner: t[k], dy: (dyCache && dyCache[k]) || 0 };
     localStorage.setItem('kairo_plugin', JSON.stringify(plug));
     // 2) 生成 config.ini 并下载（持久化到游戏目录，随项目提交）
     let txt = '; ============================================================\n'
       + '; 冒险村物语 - 建筑透视插件配置（tweak.html 保存生成）\n'
       + '; 游戏启动时读取（fetch config.ini），无需改代码\n'
-      + '; 格式：建筑key=偏移px（正=下角更深/更尖，负=更浅/更平，0=默认）\n'
+      + '; 格式：建筑key=corner偏移px,上下平移px（正=更深/下移，负=更浅/上移）\n'
       + '; ============================================================\n[corner]\n';
-    keys.forEach(k => { txt += k + '=' + (t[k] || 0) + '\n'; });
+    keys.forEach(k => { txt += k + '=' + (t[k] || 0) + ',' + ((dyCache && dyCache[k]) || 0) + '\n'; });
     const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'config.ini';
