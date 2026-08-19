@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 66;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 67;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -779,6 +779,7 @@
   /* ============ 冒险者 AI ============ */
   function updateAdventurers(dt) {
     for (const a of S.adventurers) {
+      if (!a.inv) a.inv = {};   // 兜底：旧档/缺失背包（否则 seedshop 分支 Object.keys 崩溃）
       // 屏外降频：视野外的冒险者每 3 帧更新一次逻辑（降 CPU），回视野立即恢复
       if (!inView(a.x, a.y, 60) && (a._skip = (a._skip || 0) + 1) % 3 !== 0) continue;
       a.animT += dt;
@@ -1051,7 +1052,7 @@
       } else if (b.type === 'seedshop') {
         // 先卖作物 → 再补种子（交易额抽成给玩家）
         let trade = 0;
-        for (const k of Object.keys(a.inv)) {
+        for (const k of Object.keys(a.inv || {})) {
           if (k.endsWith('_crop') && a.inv[k] > 0) {
             const sk = k.slice(0, -5);
             const sd = C.SEED_DEFS[sk];
