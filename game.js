@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 77;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 78;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1946,7 +1946,28 @@
                 drawTri([s00, s11, s01], [d00, d11, d01]);
               }
             } else {
-              ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);   // 建筑站立绘制（游戏源码：底边贴合，不压平贴地）
+              // 插件选择性透视（corner≠0 时用原游戏 farm_fit 网格变形调夹角；corner=0 站立 drawImage）
+              const plug = (S.pluginData && S.pluginData.building_perspective && S.pluginData.building_perspective[b.type]) || null;
+              const corner = plug ? (plug.corner || 0) : 0;
+              if (corner !== 0 && img && img.width > 0) {
+                const bsize = (BUILD_DEFS[b.type] && BUILD_DEFS[b.type].size) || 2;
+                const halfW = bsize * TILE_W / 2, halfH = bsize * TILE_H / 2;
+                let FC = S.flatCornersCache[b.image];
+                if (!FC) { FC = detectFarmCorners(img); if (FC) S.flatCornersCache[b.image] = FC; }
+                if (FC) {
+                  const cc = { x: p.x, y: groundY - halfH };   // 地块中心
+                  drawPerspective(ctx, img, FC, {
+                    U: { x: cc.x, y: cc.y - halfH },
+                    R: { x: cc.x + halfW, y: cc.y },
+                    D: { x: cc.x, y: groundY + corner },   // 下角随 corner（黄线夹角）
+                    L: { x: cc.x - halfW, y: cc.y },
+                  }, 16);
+                } else {
+                  ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
+                }
+              } else {
+                ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
+              }
             }
           } else {
             ctx.fillStyle = '#8a5a3b';
