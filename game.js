@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 79;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 80;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -2645,12 +2645,71 @@
     };
   }
 
+  /* ═══ 隐藏浮动控制板（建筑透视微调，热键 ~ 切换）═══ */
+  let tbCurrent = null;
+  function initTweakBoard() {
+    const board = document.getElementById('tweakBoard');
+    if (!board) return;
+    const menu = document.getElementById('tbMenu');
+    if (!menu) return;
+    menu.innerHTML = '';
+    for (const k in BUILD_DEFS) {
+      const b = document.createElement('button');
+      b.textContent = (BUILD_DEFS[k].icon || '') + ' ' + BUILD_DEFS[k].name;
+      b.dataset.k = k;
+      b.style.cssText = 'display:block;width:100%;text-align:left;padding:4px 8px;margin:2px 0;border:1px solid #2a3550;border-radius:6px;background:#182434;color:#cfd;cursor:pointer;font:12px system-ui';
+      b.onclick = () => selectTB(k);
+      menu.appendChild(b);
+    }
+    const slider = document.getElementById('tbSlider');
+    slider.addEventListener('input', () => {
+      document.getElementById('tbVal').textContent = slider.value;
+      if (tbCurrent) writeCorner(tbCurrent, parseInt(slider.value, 10) || 0);
+      updateTBAngle();
+    });
+    updateTBAngle();
+  }
+  function selectTB(k) {
+    tbCurrent = k;
+    document.querySelectorAll('#tbMenu button').forEach(b => {
+      const on = b.dataset.k === k;
+      b.style.background = on ? '#ffd23f' : '#182434';
+      b.style.color = on ? '#111a26' : '#cfd';
+    });
+    const plug = (S.pluginData && S.pluginData.building_perspective && S.pluginData.building_perspective[k]) || null;
+    const v = plug ? (plug.corner || 0) : 0;
+    document.getElementById('tbSlider').value = v;
+    document.getElementById('tbVal').textContent = v;
+    updateTBAngle();
+  }
+  function updateTBAngle() {
+    const v = parseInt(document.getElementById('tbSlider').value, 10) || 0;
+    document.getElementById('tbAngle').textContent = '黄线夹角 ' + (180 - 2 * Math.atan2(v, 84) * 180 / Math.PI).toFixed(1) + '°';
+  }
+  // 实时写入插件配置（游戏插件入口热更新渲染）
+  function writeCorner(k, v) {
+    try {
+      const raw = localStorage.getItem('kairo_plugin');
+      const d = raw ? JSON.parse(raw) : {};
+      const bp = (d.data && d.data.building_perspective) ? d.data.building_perspective : {};
+      bp[k] = { corner: v };
+      localStorage.setItem('kairo_plugin', JSON.stringify({ v: Date.now(), data: { building_perspective: bp } }));
+    } catch (e) { /* 忽略 */ }
+  }
+  window.addEventListener('keydown', e => {
+    if (e.key === '`' || e.key === '~') {
+      const board = document.getElementById('tweakBoard');
+      if (board) board.style.display = (board.style.display === 'none') ? 'block' : 'none';
+    }
+  });
+
   const bootEl = document.getElementById('boot');
   loadAssets(() => {
     // 画布铺满窗口并同步逻辑分辨率（点击/悬停按渲染记录的命中矩形判断，基准统一）
     setViewport(window.innerWidth, window.innerHeight);
     bootEl.style.display = 'none';
     requestAnimationFrame(gameLoop);
+    initTweakBoard();   // 建筑透视浮动控制板
     // 读"平铺贴地"勾选状态（localStorage 持久化；farm 默认勾）
     try {
       const ff = JSON.parse(localStorage.getItem('flatFit'));

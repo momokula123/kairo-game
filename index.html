@@ -221,11 +221,26 @@
   // 兜底：无论素材加载是否完成，2.5 秒后强制隐藏载入层
   setTimeout(function () { var b = document.getElementById('boot'); if (b) b.style.display = 'none'; }, 2500);
 </script>
-<script src="content.js?v=79"></script>
-<script src="shadow_strips.js?v=79"></script>
-<script src="sprites.js?v=79"></script>
-<script src="engine.js?v=79"></script>
-<script src="game.js?v=79"></script>
-<script src="ui.js?v=79"></script>
+<!-- 建筑透视微调浮动控制板（热键 ~ 切换显示/隐藏） -->
+ <div id="tweakBoard" style="display:none;position:fixed;right:10px;top:10px;z-index:9999;background:#1a2332;border:1px solid #2a3550;border-radius:10px;padding:12px;width:270px;color:#ddd;font:13px system-ui;box-shadow:0 4px 16px rgba(0,0,0,.5)">
+   <div style="display:flex;justify-content:space-between;align-items:center">
+     <b style="color:#ffd23f">&#127915; 建筑透视微调</b>
+     <button onclick="document.getElementById('tweakBoard').style.display='none'" style="background:none;border:none;color:#ff6b6b;cursor:pointer;font-size:16px;line-height:1">&#10005;</button>
+   </div>
+   <div id="tbMenu" style="margin:8px 0;max-height:150px;overflow:auto"></div>
+   <div style="display:flex;align-items:center;gap:8px;margin:8px 0">
+     <span style="color:#9ab">夹角</span>
+     <input type="range" id="tbSlider" min="-40" max="40" step="1" value="0" style="flex:1">
+     <span id="tbVal" style="color:#ffd23f;width:40px;text-align:right">0</span>
+   </div>
+   <div id="tbAngle" style="font-size:12px;color:#9ab"></div>
+   <div style="margin-top:6px;font-size:11px;color:#7a88a0">拖滑杆即实时生效（游戏画布直接看）；热键 ~ 切换</div>
+ </div>
+ <script src="content.js?v=80"></script>
+<script src="shadow_strips.js?v=80"></script>
+<script src="sprites.js?v=80"></script>
+<script src="engine.js?v=80"></script>
+<script src="game.js?v=80"></script>
+<script src="ui.js?v=80"></script>
 </body>
 </html>
