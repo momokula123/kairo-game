@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 65;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 66;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -779,6 +779,8 @@
   /* ============ 冒险者 AI ============ */
   function updateAdventurers(dt) {
     for (const a of S.adventurers) {
+      // 屏外降频：视野外的冒险者每 3 帧更新一次逻辑（降 CPU），回视野立即恢复
+      if (!inView(a.x, a.y, 60) && (a._skip = (a._skip || 0) + 1) % 3 !== 0) continue;
       a.animT += dt;
       if (a.bubble && a.bubbleT > 0) a.bubbleT -= dt;
       else if (a.bubble) { a.bubble = null; a.bubbleType = null; }
@@ -1359,22 +1361,30 @@
   /* ============ 史莱姆更新 ============ */
   function updateSlimes(dt) {
     for (const s of S.slimes) {
-      s.animT += dt;
       if (s.dead) continue;
+      // 屏外降频：视野外的怪每 3 帧更新一次（降 CPU），回视野立即恢复
+      if (!inView(s.x, s.y, 60) && (s._skip = (s._skip || 0) + 1) % 3 !== 0) continue;
+      s.animT += dt;
       // 缓慢跳动
       s.y += Math.sin(s.animT / 200) * 0.05;
     }
     // 清理死的
     const alive = S.slimes.filter(s => !s.dead);
     S.slimes = alive;
-    // 保持史莱姆数量（根据声望；上限 200 只）
-    const target = Math.min((4 + Math.floor(S.reputation / 8)) * 5, 200);
+    // 保持史莱姆数量（根据声望；上限 30 只，避免怪海导致渲染卡死——原上限 200 是 6 秒卡死根因）
+    const target = Math.min(8 + Math.floor(S.reputation / 12), 30);
+    while (S.slimes.length > target) S.slimes.pop();      // 清掉存量超标（修复旧档已有怪海）
     while (S.slimes.length < target) {
       S.slimes.push(makeSlime());
     }
   }
 
   /* ============ 渲染 ============ */
+  // 视口剔除辅助：世界坐标是否在相机视野内（含余量，防边缘/阴影被截）
+  function inView(wx, wy, pad) {
+    const pd = pad == null ? 130 : pad;
+    return wx + pd > camera.x && wx - pd < camera.x + W && wy + pd > camera.y && wy - pd < camera.y + H;
+  }
   function drawBg() {
     ctx.fillStyle = '#1a2e1a';
     ctx.fillRect(0, 0, W, H);
@@ -1673,6 +1683,7 @@
     // 玩家装饰（底部非透明像素对齐单格底角 p.y + TILE_H，与建筑同款处理）
     for (const d of S.decors) {
       const p = gridToScreen(d.gx, d.gy);
+      if (!inView(p.x, p.y + TILE_H, 120)) continue;   // 视口剔除
       items.push({
         y: p.y + TILE_H,
         draw: () => {
@@ -1765,6 +1776,7 @@
       const p = gridToScreen(b.gx, b.gy);
       b.x = p.x; b.y = p.y;
       const bsize = (BUILD_DEFS[b.type] && BUILD_DEFS[b.type].size) || 2;
+      if (!inView(p.x, p.y + bsize * TILE_H, 200)) continue;   // 视口剔除（建筑含阴影余量）
       // size x size 占位的完整菱形：下角尖在 p.y + size*TILE_H（对齐基准）
       const groundY = p.y + bsize * TILE_H - 2;   // 地面基准线（阴影中心）
       // 记录建筑包围矩形（供角色蒙版遮挡判定；建筑底边精确贴合菱形，包围盒用实际绘制缩放）
@@ -2057,6 +2069,7 @@
     // 史莱姆
     for (const s of S.slimes) {
       if (s.dead) continue;
+      if (!inView(s.x, s.y, 130)) continue;   // 视口剔除（连阴影）
       items.push({
         y: s.y + 8,
         draw: () => {
@@ -2139,6 +2152,7 @@
 
     // 冒险者
     for (const a of S.adventurers) {
+      if (!inView(a.x, a.y, 130)) continue;   // 视口剔除（连阴影）
       items.push({
         y: a.y + 14,
         feet: { x: a.x, y: a.y + 14 },   // 脚底点（建筑蒙版遮挡判定）
