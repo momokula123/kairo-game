@@ -86,52 +86,13 @@
           let pMin=null,pMax=null;
           for(let x=0;x<ow;x++){if(prof[x]<0)continue;const f=x/ow;if(pMin==null||f<pMin)pMin=f;if(pMax==null||f>pMax)pMax=f;}
           img._bp = { prof, pMin: Math.max(0,pMin), pMax: Math.min(1,pMax), ratio };
-          img._corners = detectCorners(img);
-        } catch(e){ img._bp = null; img._corners = null; }
+        } catch(e){ img._bp = null; }
         IMGS[k] = img;
         if(++n===keys.length) cb();
       };
       img.onerror = () => { if(++n===keys.length) cb(); };
       img.src = 'assets/' + (D[k].image || k) + '.png';
     });
-  }
-  // 检测贴图内容菱形四角（同游戏 detectFarmCorners）
-  function detectCorners(img){
-    const W = img.naturalWidth, H = img.naturalHeight;
-    if (!W || !H) return null;
-    const cv2 = document.createElement('canvas'); cv2.width = W; cv2.height = H;
-    const g = cv2.getContext('2d'); g.drawImage(img, 0, 0);
-    let d; try { d = g.getImageData(0,0,W,H).data; } catch(e) { return null; }
-    const col = x => { let lo=H,hi=-1; for(let y=0;y<H;y++) if(d[(y*W+x)*4+3]>30){ if(y<lo)lo=y; if(y>hi)hi=y; } return lo<=hi?(lo+hi)/2:-1; };
-    const row = y => { let lo=W,hi=-1; for(let x=0;x<W;x++) if(d[(y*W+x)*4+3]>30){ if(x<lo)lo=x; if(x>hi)hi=x; } return lo<=hi?(lo+hi)/2:-1; };
-    let minY=H,maxY=-1,minX=W,maxX=-1;
-    for(let y=0;y<H;y++)for(let x=0;x<W;x++) if(d[(y*W+x)*4+3]>30){ if(x<minX)minX=x; if(x>maxX)maxX=x; if(y<minY)minY=y; if(y>maxY)maxY=y; }
-    if(minX>maxX||minY>maxY) return null;
-    return { top:[row(minY)/W,minY/H], right:[maxX/W,col(maxX)/H], bottom:[row(maxY)/W,maxY/H], left:[minX/W,col(minX)/H] };
-  }
-  // 透视变换（同游戏 drawPerspective）：贴图内容菱形四角 → 目标菱形四角，corner 调下角
-  function drawPerspective(c, img, FC, dst, N){
-    const ow0=img.naturalWidth, oh0=img.naturalHeight;
-    const A={x:FC.top[0]*ow0,y:FC.top[1]*oh0}, B={x:FC.right[0]*ow0,y:FC.right[1]*oh0};
-    const C={x:FC.bottom[0]*ow0,y:FC.bottom[1]*oh0}, Dd={x:FC.left[0]*ow0,y:FC.left[1]*oh0};
-    const Src=(u,v)=>({x:(1-u)*(1-v)*A.x+u*(1-v)*B.x+u*v*C.x+(1-u)*v*Dd.x, y:(1-u)*(1-v)*A.y+u*(1-v)*B.y+u*v*C.y+(1-u)*v*Dd.y});
-    const Dst=(u,v)=>({x:(1-u)*(1-v)*dst.U.x+u*(1-v)*dst.R.x+u*v*dst.D.x+(1-u)*v*dst.L.x, y:(1-u)*(1-v)*dst.U.y+u*(1-v)*dst.R.y+u*v*dst.D.y+(1-u)*v*dst.L.y});
-    const drawTri=(s,d)=>{
-      const ux=s[1].x-s[0].x,uy=s[1].y-s[0].y,vx=s[2].x-s[0].x,vy=s[2].y-s[0].y;
-      const den=ux*vy-vx*uy; if(!den)return;
-      const wux=d[1].x-d[0].x,wuy=d[1].y-d[0].y,wvx=d[2].x-d[0].x,wvy=d[2].y-d[0].y;
-      const a=(wux*vy-wvx*uy)/den,mc=(wvx*ux-wux*vx)/den,b=(wuy*vy-wvy*uy)/den,dd=(wvy*ux-wuy*vx)/den;
-      const e=d[0].x-a*s[0].x-mc*s[0].y,f=d[0].y-b*s[0].x-dd*s[0].y;
-      c.save(); c.beginPath(); c.moveTo(d[0].x,d[0].y); c.lineTo(d[1].x,d[1].y); c.lineTo(d[2].x,d[2].y); c.closePath(); c.clip();
-      c.transform(a,b,mc,dd,e,f); c.drawImage(img,0,0,ow0,oh0); c.restore();
-    };
-    const n=N||16;
-    for(let j=0;j<n;j++)for(let i=0;i<n;i++){
-      const u0=i/n,v0=j/n,u1=(i+1)/n,v1=(j+1)/n;
-      const s00=Src(u0,v0),s10=Src(u1,v0),s11=Src(u1,v1),s01=Src(u0,v1);
-      const d00=Dst(u0,v0),d10=Dst(u1,v0),d11=Dst(u1,v1),d01=Dst(u0,v1);
-      drawTri([s00,s10,s11],[d00,d10,d11]); drawTri([s00,s11,s01],[d00,d11,d01]);
-    }
   }
   function pathDiamond(c,px,py,tw,th){
     c.beginPath(); c.moveTo(px,py); c.lineTo(px+tw/2,py+th/2); c.lineTo(px,py+th); c.lineTo(px-tw/2,py+th/2); c.closePath();
