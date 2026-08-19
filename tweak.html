@@ -7,6 +7,7 @@
   body{background:#1a2332;color:#ddd;font:14px/1.7 system-ui;margin:20px;max-width:760px}
   h1{color:#ffd23f} .hint{color:#9ab}
   .row{display:flex;align-items:center;gap:12px;padding:6px 0;border-bottom:1px solid #2a3550}
+  .row canvas{background:#0f1620;border:1px solid #2a3550;border-radius:6px}
   .row label{width:120px;color:#fff}
   .row input[type=range]{flex:1}
   .row .val{width:46px;text-align:right;color:#ffd23f;font:bold 13px monospace}
@@ -30,17 +31,33 @@
   const KEY = 'cornerTweak';
   if (!D) { document.getElementById('list').innerHTML = '<p style="color:#ff6b6b">content.js 未加载（请通过 localhost 访问）</p>'; return; }
   const list = document.getElementById('list');
+  // 可视化预览：菱形（蓝线）+ 黄线 V 形，下角随 corner 偏移（正=更深）
+  function drawPreview(cv, corner){
+    const c = cv.getContext('2d');
+    const w = cv.width, h = cv.height;
+    c.clearRect(0,0,w,h);
+    const cx = w/2, cy = h-8;
+    const half = 26, base = 12;
+    const down = base + corner * 0.5;
+    c.save(); c.setLineDash([5,3]); c.strokeStyle='#00e5ff'; c.lineWidth=2; c.lineJoin='round';
+    c.beginPath(); c.moveTo(cx-half, cy-base); c.lineTo(cx, cy); c.lineTo(cx+half, cy-base); c.stroke(); c.restore();
+    c.save(); c.setLineDash([4,3]); c.strokeStyle='#ffd23f'; c.lineWidth=2.5; c.lineJoin='round';
+    c.beginPath(); c.moveTo(cx-half, cy-base); c.lineTo(cx, cy-base+down); c.lineTo(cx+half, cy-base); c.stroke(); c.restore();
+  }
   for (const k in D) {
     const d = D[k];
     const row = document.createElement('div'); row.className='row';
-    row.innerHTML = '<label>'+d.icon+' '+d.name+'</label><input type="range" min="-40" max="40" step="1" value="0" data-k="'+k+'"><span class="val">0</span><span class="pill">'+k+'</span>';
+    row.innerHTML = '<canvas width="90" height="58"></canvas><label>'+d.icon+' '+d.name+'</label><input type="range" min="-40" max="40" step="1" value="0" data-k="'+k+'"><span class="val">0</span>';
     list.appendChild(row);
+    drawPreview(row.querySelector('canvas'), 0);
   }
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch(e) {}
   document.querySelectorAll('input[data-k]').forEach(function(i){
+    const row = i.parentNode;
     if (saved[i.dataset.k] != null) { i.value = saved[i.dataset.k]; i.parentNode.querySelector('.val').textContent = saved[i.dataset.k]; }
-    i.addEventListener('input', function(){ i.parentNode.querySelector('.val').textContent = i.value; });
+    drawPreview(row.querySelector('canvas'), parseInt(i.value,10)||0);
+    i.addEventListener('input', function(){ i.parentNode.querySelector('.val').textContent = i.value; drawPreview(i.parentNode.querySelector('canvas'), parseInt(i.value,10)||0); });
   });
   window.save = function(){
     const t = {};
