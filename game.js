@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 69;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 71;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1386,15 +1386,48 @@
     const pd = pad == null ? 130 : pad;
     return wx + pd > camera.x && wx - pd < camera.x + W && wy + pd > camera.y && wy - pd < camera.y + H;
   }
-  // 建筑下角微调（tweak.html 设置，localStorage）：{ 建筑key: 下角尖偏移px（正=加深V形，负=变浅） }
-  let _cornerTweak = null;
+  // 建筑下角微调：config.ini（持久化文件）为基础值 + localStorage（tweak.html 实时写入）覆盖。
+  // getCornerTweak 每 0.5s 重读 localStorage → 浏览器里所有游戏页不刷新也实时同步。
+  let _cornerTweak = {};
+  let _iniBase = {};
+  let _ctLast = 0;
   function getCornerTweak() {
-    if (_cornerTweak === null) {
-      try { _cornerTweak = JSON.parse(localStorage.getItem('cornerTweak') || '{}'); }
-      catch (e) { _cornerTweak = {}; }
+    const now = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+    if (now - _ctLast > 500) {
+      _ctLast = now;
+      const t = {};
+      for (const k in _iniBase) t[k] = _iniBase[k];
+      try {
+        const ls = JSON.parse(localStorage.getItem('cornerTweak') || '{}');
+        for (const k in ls) t[k] = ls[k];
+      } catch (e) { /* 忽略 */ }
+      _cornerTweak = t;
     }
     return _cornerTweak;
   }
+  // 启动读取 config.ini（游戏目录配置文件）作为基础值
+  function loadCornerTweak() {
+    const apply = () => { _ctLast = 0; getCornerTweak(); };
+    if (typeof fetch !== 'undefined') {
+      fetch('config.ini', { cache: 'no-store' })
+        .then(r => r.ok ? r.text() : '')
+        .then(txt => {
+          const t = {}; let inC = false;
+          for (const line of txt.split('\n')) {
+            const s = line.trim();
+            if (!s || s[0] === ';' || s[0] === '#') continue;
+            if (s[0] === '[') { inC = (s === '[corner]'); continue; }
+            if (!inC) continue;
+            const i = s.indexOf('=');
+            if (i > 0) { const v = parseInt(s.slice(i + 1).trim(), 10); if (!isNaN(v)) t[s.slice(0, i).trim()] = v; }
+          }
+          _iniBase = t;
+          apply();
+        })
+        .catch(apply);
+    } else apply();
+  }
+  loadCornerTweak();
   function drawBg() {
     ctx.fillStyle = '#1a2e1a';
     ctx.fillRect(0, 0, W, H);
@@ -1947,49 +1980,25 @@
             ctx.textBaseline = 'middle';
             ctx.fillText(icon, p.x, topY + 30);
           }
-          // 调试：黄线 = 贴图底部滤噪点后的底边轮廓，经底边贴合变换贴合蓝色菱形虚线（建筑贴图管线铁规）
+          // 调试：黄线 = 菱形底边（自动贴合蓝色菱形虚线），下角随 corner 微调
           if (S.debugBuildingBase && img && img.width > 0) {
-            if (img.bottomProfile) {
-              const prof = img.bottomProfile, ow = img.naturalWidth;
-              const corner = getCornerTweak()[b.type] || 0;   // 下角微调（tweak.html）
-              ctx.save();
-              ctx.setLineDash([8, 5]);
-              ctx.strokeStyle = '#ffd23f';
-              ctx.lineWidth = 5;
-              ctx.lineJoin = 'round';
-              ctx.lineCap = 'round';
-              ctx.beginPath();
-              let started = false;
-              for (let x = 0; x < ow; x++) {
-                const r = prof[x];
-                if (r < 0) continue;
-                const sx = p.x - dw / 2 + (x / ow) * dw;   // 底边贴合变换（两端对齐菱形左右角）
-                const cxr = (x / ow) - 0.5;
-                const v = Math.max(0, 1 - Math.abs(cxr) * 2);   // 中心=1 两端=0
-                const sy = topY + Math.min(r, img.bottomRatio || 1) * dh + v * corner;
-                if (!started) { ctx.moveTo(sx, sy); started = true; }
-                else ctx.lineTo(sx, sy);
-              }
-              ctx.stroke();
-              ctx.restore();
-            } else {
-              // 兜底：无底部轮廓数据时画菱形底边（保证黄线始终可见）
-              ctx.save();
-              ctx.setLineDash([8, 5]);
-              ctx.strokeStyle = '#ffd23f';
-              ctx.lineWidth = 5;
-              ctx.lineJoin = 'round';
-              ctx.lineCap = 'round';
-              ctx.beginPath();
-              ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
-              ctx.lineTo(p.x, p.y + 2 * TILE_H);              // 下角尖
-              ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
-              ctx.stroke();
-              ctx.restore();
-            }
+            const corner = getCornerTweak()[b.type] || 0;
+            ctx.save();
+            ctx.setLineDash([8, 5]);
+            ctx.strokeStyle = '#ffd23f';
+            ctx.lineWidth = 5;
+            ctx.lineJoin = 'round';
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
+            ctx.lineTo(p.x, p.y + 2 * TILE_H + corner);     // 下角尖（corner 微调）
+            ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
+            ctx.stroke();
+            ctx.restore();
           }
-          // 调试：2x2 建造方块的两条底边（青色 5px 虚线）——黄线应贴合这条青线
+          // 调试：2x2 建造方块的两条底边（青色 5px 虚线）——黄线自动贴合这条青线
           if (S.debugBuildingBase) {
+            const corner = getCornerTweak()[b.type] || 0;
             ctx.save();
             ctx.setLineDash([8, 5]);
             ctx.strokeStyle = '#00e5ff';
@@ -1997,7 +2006,7 @@
             ctx.lineJoin = 'round';
             ctx.beginPath();
             ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
-            ctx.lineTo(p.x, p.y + 2 * TILE_H);              // 下角尖
+            ctx.lineTo(p.x, p.y + 2 * TILE_H + corner);     // 下角尖（corner 微调）
             ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
             ctx.stroke();
             ctx.restore();
