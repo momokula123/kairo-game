@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 75;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 76;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -215,6 +215,26 @@
     hirePool: [],
     mascotLevel: 1,
   };
+
+  /* ═══ 插件系统入口（唯一主代码接入点）═══
+     插件（如 tweak.html）通过 localStorage['kairo_plugin'] 提供配置：
+       { v: 版本戳(每次保存递增), data: { building_perspective: { 建筑key: {corner: 偏移px} } } }
+     游戏启动读取一次；每 0.5s 检测插件版本戳变化 → 更新 S.pluginData（渲染直接读它） */
+  S.pluginData = {};
+  let _pluginVer = 0;
+  function refreshPlugins() {
+    try {
+      const raw = localStorage.getItem('kairo_plugin');
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (d && d.v && d.v !== _pluginVer) {
+        _pluginVer = d.v;
+        S.pluginData = (d.data && typeof d.data === 'object') ? d.data : {};
+      }
+    } catch (e) { /* 忽略 */ }
+  }
+  refreshPlugins();
+  setInterval(refreshPlugins, 500);
 
   /* ============ 网格占用系统 ============ */
   // grid[gy][gx]: 0=空地 1=建筑(2x2) 2=装饰(1x1) 3=道路
@@ -1926,7 +1946,27 @@
                 drawTri([s00, s11, s01], [d00, d11, d01]);
               }
             } else {
-              ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);   // 游戏源码：底边贴合直接绘制，不裁剪
+              // 插件透视变换（tweak 插件选择性调整 AI 图透视角度——游戏源码 flatFit 网格变形方案）
+              const plug = (S.pluginData && S.pluginData.building_perspective && S.pluginData.building_perspective[b.type]) || null;
+              if (plug && plug.corner && img && img.width > 0) {
+                const bsize = (BUILD_DEFS[b.type] && BUILD_DEFS[b.type].size) || 2;
+                const halfW = bsize * TILE_W / 2, halfH = bsize * TILE_H / 2;
+                let FC = S.flatCornersCache[b.image];
+                if (!FC) { FC = detectFarmCorners(img); if (FC) S.flatCornersCache[b.image] = FC; }
+                if (FC) {
+                  const cc = { x: p.x, y: groundY - halfH };   // 地块中心
+                  drawPerspective(ctx, img, FC, {
+                    U: { x: cc.x, y: cc.y - halfH },
+                    R: { x: cc.x + halfW, y: cc.y },
+                    D: { x: cc.x, y: groundY + plug.corner },   // 下角随插件 corner
+                    L: { x: cc.x - halfW, y: cc.y },
+                  }, 16);
+                } else {
+                  ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
+                }
+              } else {
+                ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
+              }
             }
           } else {
             ctx.fillStyle = '#8a5a3b';
@@ -2563,6 +2603,46 @@
   /* ============ 启动 ============ */
 
   // 自动检测贴图内容菱形四角（算法：按 PNG 非透明内容找上/右/下/左尖角，返回归一化 0..1）
+  // 通用透视变换（游戏源码 flatFit 方案）：把贴图内容菱形四角(FC)透视映射到目标菱形四角(dst.U/R/D/L)
+  // 插件（tweak）用它把 AI 图透视统一到游戏透视角度
+  function drawPerspective(ctx, img, FC, dst, N) {
+    const ow0 = img.naturalWidth, oh0 = img.naturalHeight;
+    const A = { x: FC.top[0] * ow0, y: FC.top[1] * oh0 };
+    const B = { x: FC.right[0] * ow0, y: FC.right[1] * oh0 };
+    const C = { x: FC.bottom[0] * ow0, y: FC.bottom[1] * oh0 };
+    const Dd = { x: FC.left[0] * ow0, y: FC.left[1] * oh0 };
+    const Src = (u, v) => ({
+      x: (1 - u) * (1 - v) * A.x + u * (1 - v) * B.x + u * v * C.x + (1 - u) * v * Dd.x,
+      y: (1 - u) * (1 - v) * A.y + u * (1 - v) * B.y + u * v * C.y + (1 - u) * v * Dd.y,
+    });
+    const Dst = (u, v) => ({
+      x: (1 - u) * (1 - v) * dst.U.x + u * (1 - v) * dst.R.x + u * v * dst.D.x + (1 - u) * v * dst.L.x,
+      y: (1 - u) * (1 - v) * dst.U.y + u * (1 - v) * dst.R.y + u * v * dst.D.y + (1 - u) * v * dst.L.y,
+    });
+    const drawTri = (s, d) => {
+      const ux = s[1].x - s[0].x, uy = s[1].y - s[0].y, vx = s[2].x - s[0].x, vy = s[2].y - s[0].y;
+      const den = ux * vy - vx * uy; if (!den) return;
+      const wux = d[1].x - d[0].x, wuy = d[1].y - d[0].y, wvx = d[2].x - d[0].x, wvy = d[2].y - d[0].y;
+      const a = (wux * vy - wvx * uy) / den, c = (wvx * ux - wux * vx) / den;
+      const b = (wuy * vy - wvy * uy) / den, dd = (wvy * ux - wuy * vx) / den;
+      const e = d[0].x - a * s[0].x - c * s[0].y, f = d[0].y - b * s[0].x - dd * s[0].y;
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(d[0].x, d[0].y); ctx.lineTo(d[1].x, d[1].y); ctx.lineTo(d[2].x, d[2].y); ctx.closePath();
+      ctx.clip();
+      ctx.transform(a, b, c, dd, e, f);
+      ctx.drawImage(img, 0, 0, ow0, oh0);
+      ctx.restore();
+    };
+    const n = N || 16;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const u0 = i / n, v0 = j / n, u1 = (i + 1) / n, v1 = (j + 1) / n;
+      const s00 = Src(u0, v0), s10 = Src(u1, v0), s11 = Src(u1, v1), s01 = Src(u0, v1);
+      const d00 = Dst(u0, v0), d10 = Dst(u1, v0), d11 = Dst(u1, v1), d01 = Dst(u0, v1);
+      drawTri([s00, s10, s11], [d00, d10, d11]);
+      drawTri([s00, s11, s01], [d00, d11, d01]);
+    }
+  }
+
   function detectFarmCorners(img) {
     const W = img.naturalWidth, H = img.naturalHeight;
     if (!W || !H) return null;

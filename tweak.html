@@ -163,11 +163,17 @@
     menu.appendChild(b);
   });
   let saved = {};
-  // 基础值来自 config.ini（持久化文件），localStorage（tweak 实时）覆盖
+  // 基础值来自 config.ini（持久化文件），localStorage 插件配置（kairo_plugin）覆盖
   function loadSaved(cb){
     const apply = (base) => {
       saved = base || {};
-      try { const ls = JSON.parse(localStorage.getItem(KEY) || '{}'); for (const k in ls) saved[k] = ls[k]; } catch(e){}
+      try {
+        const plug = JSON.parse(localStorage.getItem('kairo_plugin') || '{}');
+        if (plug && plug.data && plug.data.building_perspective)
+          for (const k in plug.data.building_perspective) saved[k] = plug.data.building_perspective[k].corner || 0;
+        const ls = JSON.parse(localStorage.getItem('cornerTweak') || '{}');   // 兼容旧 key
+        for (const k in ls) if (saved[k] == null) saved[k] = ls[k];
+      } catch(e){}
       cb();
     };
     if (typeof fetch !== 'undefined') {
@@ -207,12 +213,14 @@
     const t = {};
     if (current) { const v = parseInt(slider.value,10); if (v) t[current] = v; }
     for (const k in saved) if (t[k] == null) t[k] = saved[k];
-    // 1) 写入 localStorage → 浏览器所有游戏页 ≤0.5s 实时生效（不刷新）
-    localStorage.setItem(KEY, JSON.stringify(t));
     saved = t;
+    // 1) 写入插件配置 localStorage['kairo_plugin'] → 游戏插件入口每0.5s检测版本戳更新 → 渲染响应
+    const plug = { v: Date.now(), data: { building_perspective: {} } };
+    for (const k in t) plug.data.building_perspective[k] = { corner: t[k] };
+    localStorage.setItem('kairo_plugin', JSON.stringify(plug));
     // 2) 生成 config.ini 并下载（持久化到游戏目录，随项目提交）
     let txt = '; ============================================================\n'
-      + '; 冒险村物语 - 建筑下角微调配置（tweak.html 保存生成）\n'
+      + '; 冒险村物语 - 建筑透视插件配置（tweak.html 保存生成）\n'
       + '; 游戏启动时读取（fetch config.ini），无需改代码\n'
       + '; 格式：建筑key=偏移px（正=下角更深/更尖，负=更浅/更平，0=默认）\n'
       + '; ============================================================\n[corner]\n';
@@ -221,9 +229,9 @@
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = 'config.ini';
     document.body.appendChild(a); a.click(); a.remove();
-    alert('已保存：\n1) localStorage 已写入——浏览器所有游戏页约 0.5 秒内实时生效（无需刷新）；\n2) config.ini 已下载——请保存到游戏目录覆盖（随项目持久化）。');
+    alert('已保存为插件配置：\n1) localStorage[kairo_plugin] 已写入——游戏约0.5秒内热更新渲染（无需刷新）；\n2) config.ini 已下载——保存到游戏目录覆盖可持久化。');
   };
-  window.resetAll = function(){ localStorage.removeItem(KEY); location.reload(); };
+  window.resetAll = function(){ localStorage.removeItem('kairo_plugin'); localStorage.removeItem('cornerTweak'); location.reload(); };
 })();
 </script>
 </body>
