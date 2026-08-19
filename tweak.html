@@ -26,7 +26,12 @@
 </head>
 <body>
 <h1>&#127961; 建筑下角角度微调（完全复刻游戏场景）</h1>
-<p class="hint">顶部菜单切换建筑。场景与游戏完全一致：草绿菱形网格 + 2×2 地块 + 建筑按游戏底边贴合贴地放置 + 蓝线(青)与黄线菱形（自动贴合），拖动滑杆微调<b>最下面这个角</b>（正=更深，负=更浅）。保存后回游戏<b>强刷（Ctrl+Shift+R）</b>生效。</p>
+<p class="hint">顶部菜单切换建筑。拖动滑杆调整黄线夹角（底部两条斜边），保存后游戏约 0.5 秒热更新渲染，config.ini 自动下载。</p>
+<div class="toolbar">
+  <button class="btn save" onclick="save()" style="font-size:16px;padding:12px 28px">💾 保存</button>
+  <button class="btn reset" onclick="resetAll()">全部重置</button>
+  <span class="note" style="margin-left:10px">保存 = 写入插件配置(localStorage kairo_plugin) + 下载 config.ini</span>
+</div>
 <div class="menu" id="menu"></div>
 <div class="stage">
   <div class="card">
