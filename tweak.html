@@ -180,13 +180,19 @@
     drawDiamond(c, cx, groundY, tw, th, 0, '#00e5ff', [8,5], 3);
     // 贴图（建筑站立绘制，游戏源码：底边贴合，不压平贴地）
     c.drawImage(img, cx-dw/2, topY, dw, dh);
-    // 黄线（贴图底部 V 形夹角，随 corner 显示透视角度）
-    c.save(); c.setLineDash([5,3]); c.strokeStyle='#ffd23f'; c.lineWidth=3; c.lineJoin='round';
-    c.beginPath();
-    c.moveTo(cx-dw/2, groundY);
-    c.lineTo(cx, groundY+corner);
-    c.lineTo(cx+dw/2, groundY);
-    c.stroke(); c.restore();
+    // 黄线（贴图底部两条底边轮廓，游戏源码黄线）
+    if (bp && bp.prof) {
+      const prof = bp.prof;
+      c.save(); c.setLineDash([5,3]); c.strokeStyle='#ffd23f'; c.lineWidth=2.5; c.lineJoin='round';
+      c.beginPath(); let st=false;
+      for(let x=0;x<ow;x++){
+        const r=prof[x]; if(r<0)continue;
+        const sx=cx-dw/2+(x/ow)*dw;
+        const sy=topY+Math.min(r,ratio)*dh;
+        if(!st){c.moveTo(sx,sy);st=true}else c.lineTo(sx,sy);
+      }
+      c.stroke(); c.restore();
+    }
   }
   // 菜单
   const menu = document.getElementById('menu');
