@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 78;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 79;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1946,25 +1946,11 @@
                 drawTri([s00, s11, s01], [d00, d11, d01]);
               }
             } else {
-              // 插件选择性透视（corner≠0 时用原游戏 farm_fit 网格变形调夹角；corner=0 站立 drawImage）
+              // 插件选择性透视（corner≠0 时站立建筑底部 V 形夹角透视变换；corner=0 站立 drawImage）
               const plug = (S.pluginData && S.pluginData.building_perspective && S.pluginData.building_perspective[b.type]) || null;
               const corner = plug ? (plug.corner || 0) : 0;
               if (corner !== 0 && img && img.width > 0) {
-                const bsize = (BUILD_DEFS[b.type] && BUILD_DEFS[b.type].size) || 2;
-                const halfW = bsize * TILE_W / 2, halfH = bsize * TILE_H / 2;
-                let FC = S.flatCornersCache[b.image];
-                if (!FC) { FC = detectFarmCorners(img); if (FC) S.flatCornersCache[b.image] = FC; }
-                if (FC) {
-                  const cc = { x: p.x, y: groundY - halfH };   // 地块中心
-                  drawPerspective(ctx, img, FC, {
-                    U: { x: cc.x, y: cc.y - halfH },
-                    R: { x: cc.x + halfW, y: cc.y },
-                    D: { x: cc.x, y: groundY + corner },   // 下角随 corner（黄线夹角）
-                    L: { x: cc.x - halfW, y: cc.y },
-                  }, 16);
-                } else {
-                  ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
-                }
+                drawBuildingV(ctx, img, p.x, topY, groundY, dw, corner, 16);   // 站立+底部 V 形（corner 调夹角）
               } else {
                 ctx.drawImage(img, p.x - dw / 2, topY, dw, dh);
               }
@@ -2604,22 +2590,16 @@
   /* ============ 启动 ============ */
 
   // 自动检测贴图内容菱形四角（算法：按 PNG 非透明内容找上/右/下/左尖角，返回归一化 0..1）
-  // 通用透视变换（游戏源码 flatFit 方案）：把贴图内容菱形四角(FC)透视映射到目标菱形四角(dst.U/R/D/L)
-  // 插件（tweak）用它把 AI 图透视统一到游戏透视角度
-  function drawPerspective(ctx, img, FC, dst, N) {
+  // 站立建筑透视变换：顶部矩形不动，底部按 corner 夹角做 V 形（原游戏 drawTri 网格技术，不压平贴地）
+  function drawBuildingV(ctx, img, cx, topY, groundY, dw, corner, N) {
     const ow0 = img.naturalWidth, oh0 = img.naturalHeight;
-    const A = { x: FC.top[0] * ow0, y: FC.top[1] * oh0 };
-    const B = { x: FC.right[0] * ow0, y: FC.right[1] * oh0 };
-    const C = { x: FC.bottom[0] * ow0, y: FC.bottom[1] * oh0 };
-    const Dd = { x: FC.left[0] * ow0, y: FC.left[1] * oh0 };
-    const Src = (u, v) => ({
-      x: (1 - u) * (1 - v) * A.x + u * (1 - v) * B.x + u * v * C.x + (1 - u) * v * Dd.x,
-      y: (1 - u) * (1 - v) * A.y + u * (1 - v) * B.y + u * v * C.y + (1 - u) * v * Dd.y,
-    });
-    const Dst = (u, v) => ({
-      x: (1 - u) * (1 - v) * dst.U.x + u * (1 - v) * dst.R.x + u * v * dst.D.x + (1 - u) * v * dst.L.x,
-      y: (1 - u) * (1 - v) * dst.U.y + u * (1 - v) * dst.R.y + u * v * dst.D.y + (1 - u) * v * dst.L.y,
-    });
+    const n = N || 16;
+    const Src = (u, v) => ({ x: u * ow0, y: v * oh0 });
+    const Dst = (u, v) => {
+      const x = cx + (u - 0.5) * dw;
+      const bottomY = groundY + (1 - Math.abs(u - 0.5) * 2) * corner;   // 底部 V 形（corner 调夹角）
+      return { x, y: topY + v * (bottomY - topY) };
+    };
     const drawTri = (s, d) => {
       const ux = s[1].x - s[0].x, uy = s[1].y - s[0].y, vx = s[2].x - s[0].x, vy = s[2].y - s[0].y;
       const den = ux * vy - vx * uy; if (!den) return;
@@ -2634,7 +2614,6 @@
       ctx.drawImage(img, 0, 0, ow0, oh0);
       ctx.restore();
     };
-    const n = N || 16;
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const u0 = i / n, v0 = j / n, u1 = (i + 1) / n, v1 = (j + 1) / n;
       const s00 = Src(u0, v0), s10 = Src(u1, v0), s11 = Src(u1, v1), s01 = Src(u0, v1);
