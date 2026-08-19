@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  window.__VILLAGE_VERSION = 67;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
+  window.__VILLAGE_VERSION = 68;   // 版本标识：强刷后控制台/页面可见，用于排查缓存
   console.log('[冒险村物语] 版本 v' + window.__VILLAGE_VERSION);
 
   let W = 1728, H = 1080;   // 逻辑分辨率：默认 1728x1080，加载后按窗口铺满动态调整（setViewport）
@@ -1826,18 +1826,8 @@
             if (pMax > pMin) {
               // 菱形左右顶点宽 = size*TILE_W，等比缩放
               dw = Math.round(160 * ((bsize * TILE_W) / ((pMax - pMin) * 160)));
-              // 城堡/农场（多线条复杂轮廓 / 横长地块）按自然比例；宽幅贴图（AI 生成的 16:9 等）保持比例防畸变；其余全部菱形贴合（黄线紧贴蓝线）
-              if (b.type === 'castle' || b.type === 'farm') {
-                dh = Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)));
-              } else if (img.naturalHeight && img.naturalWidth) {
-                const wr = img.naturalWidth / img.naturalHeight;
-                // 宽幅或高瘦贴图都按自然比例（防 AI 宽/高图压扁畸变）
-                dh = (wr > 1.35 || wr < 1 / 1.35)
-                  ? Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)))
-                  : dw;
-              } else {
-                dh = dw;
-              }
+              // dh 一律按贴图自然比例（建筑贴图管线铁规：禁止宽高比阈值分支/压方/立起）
+              dh = Math.max(1, Math.round(dw * (img.naturalHeight / img.naturalWidth)));
             }
           }
           let topY;
@@ -1948,23 +1938,9 @@
             ctx.textBaseline = 'middle';
             ctx.fillText(icon, p.x, topY + 30);
           }
-          // 调试：黄线——农场（平铺地块）画菱形底边；其余（含新建筑）沿图片底部轮廓，严格参考老建筑
+          // 调试：黄线 = 贴图底部滤噪点后的底边轮廓，经底边贴合变换贴合蓝色菱形虚线（建筑贴图管线铁规）
           if (S.debugBuildingBase && img && img.width > 0) {
-            const isDiamond = (b.type === 'farm');
-            if (isDiamond) {
-              ctx.save();
-              ctx.setLineDash([8, 5]);
-              ctx.strokeStyle = '#ffd23f';
-              ctx.lineWidth = 5;
-              ctx.lineJoin = 'round';
-              ctx.lineCap = 'round';
-              ctx.beginPath();
-              ctx.moveTo(p.x - TILE_W, p.y + TILE_H);         // 左角
-              ctx.lineTo(p.x, p.y + 2 * TILE_H);              // 下角尖
-              ctx.lineTo(p.x + TILE_W, p.y + TILE_H);         // 右角
-              ctx.stroke();
-              ctx.restore();
-            } else if (img.bottomProfile) {
+            if (img.bottomProfile) {
               const prof = img.bottomProfile, ow = img.naturalWidth;
               ctx.save();
               ctx.setLineDash([8, 5]);
@@ -1977,7 +1953,7 @@
               for (let x = 0; x < ow; x++) {
                 const r = prof[x];
                 if (r < 0) continue;
-                const sx = p.x - dw / 2 + (x / ow) * dw;
+                const sx = p.x - dw / 2 + (x / ow) * dw;   // 底边贴合变换（两端对齐菱形左右角）
                 const sy = topY + Math.min(r, img.bottomRatio || 1) * dh;
                 if (!started) { ctx.moveTo(sx, sy); started = true; }
                 else ctx.lineTo(sx, sy);
@@ -1985,7 +1961,7 @@
               ctx.stroke();
               ctx.restore();
             } else {
-              // 兜底：底部轮廓缺失/异常时画菱形底边，保证黄线始终可见（不吞报错）
+              // 兜底：无底部轮廓数据时画菱形底边（保证黄线始终可见）
               ctx.save();
               ctx.setLineDash([8, 5]);
               ctx.strokeStyle = '#ffd23f';

@@ -64,7 +64,7 @@
     market: 'assets/market.png?v=2',
     shrine: 'assets/shrine.png?v=2',
     library: 'assets/library.png?v=2',
-    barracks: 'assets/barracks.png?v=1',
+    barracks: 'assets/barracks.png?v=2',
     powerplant: 'assets/powerplant.png?v=1',
     refinery: 'assets/refinery.png?v=1',
     windmill: 'assets/windmill.png?v=1',
@@ -416,14 +416,9 @@
     for (const k in window.SHADOW_STRIPS) {
       SpriteKit._shadowCache.set(k, window.SHADOW_STRIPS[k]);
     }
-    // 新建筑按旅店做法：阴影条带复用旅店的（方形小屋底部轮廓近似，尺寸同 2x2 / 84）
-    const innStrips = window.SHADOW_STRIPS['inn|0|0|84'];
-    if (innStrips) {
-      for (const nb of ['forge', 'market', 'shrine', 'library', 'barracks', 'powerplant', 'refinery', 'windmill', 'church', 'tower']) {
-        SpriteKit._shadowCache.set(nb + '|0|0|84', innStrips);
-      }
-    }
   }
+  // 说明：新建筑（forge/barracks 等）不再复用旅店条带——http 环境下 buildShadowGeo
+  //       按各自贴图蒙版实时计算阴影（形状各异）；file:// 下才回退简化条带。
 
   // ═══ 管线校验 callback（开发铁规）═══
   // 新增内容若未按 content.js 顶部"开发铁规"完整注册（IMG_SRC / ALIGN_KEYS /
